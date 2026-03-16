@@ -23,8 +23,6 @@ class AppRoutes {
   static const String productDetail = '/product-detail';
   static const String cart = '/cart';
 
-// tess
-// adam anjg
   // 2. Bagian ini berfungsi seperti AppNavigation.kt (Peta Rute)
   static Map<String, WidgetBuilder> getRoutes() {
     return {
