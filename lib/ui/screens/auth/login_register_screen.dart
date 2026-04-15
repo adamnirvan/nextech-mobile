@@ -95,7 +95,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                           child: Text(
                             "Login",
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: AppText.body.copyWith(
                               fontWeight: FontWeight.bold,
                               color: isLoginMode ? colorScheme.onPrimary : Colors.grey,
                             ),
@@ -120,7 +120,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                           child: Text(
                             "Register",
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: AppText.body.copyWith(
                               fontWeight: FontWeight.bold,
                               color: !isLoginMode ? colorScheme.onPrimary : Colors.grey,
                             ),
@@ -153,6 +153,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
   // Tugas: Menampilkan kotak Email, Password, dan tombol Sign In
   // ==========================================
   Widget _buildLoginForm(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       key: const ValueKey(
         'login',
@@ -161,18 +162,26 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
 
       TextField(
           controller: _emailController,
-          decoration: const InputDecoration(
-            hintText: "E-mail address",
-            prefixIcon: Icon(Icons.email_outlined),
+          decoration: InputDecoration(
+            hintText:  "E-mail address",
+            hintStyle: AppText.body.copyWith(
+              color: colorScheme.onSurface, 
+              fontSize: 15
+            ),
+            prefixIcon: Icon(Icons.email_rounded),
           ),
         ),
         const SizedBox(height: 16),
         TextField(
           controller: _passwordController,
           obscureText: true,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: "Password",
-            prefixIcon: Icon(Icons.lock_outline),
+            hintStyle: AppText.body.copyWith(
+              color: colorScheme.onSurface,
+              fontSize: 15
+            ),
+            prefixIcon: Icon(Icons.lock_rounded),
           ),
         ), 
         const SizedBox(height: 8),
@@ -182,10 +191,14 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
           alignment: Alignment.centerRight,
           child: TextButton(
             onPressed:
-                () {}, // TODO: Tambahkan navigasi ke halaman reset password
+                () {
+                  print("Tombol forgot password diklik");
+                }, 
             child: Text(
               "Forgot password?",
-              style: TextStyle(color: Theme.of(context).colorScheme.primary),
+              style: AppText.body.copyWith(
+                color: colorScheme.onSurface
+              ),
             ),
           ),
         ),
@@ -194,9 +207,14 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
         // --- TOMBOL SIGN IN ---
         SizedBox(
           width: double.infinity,
+          height: 44,
           child: FilledButton(
             // Menambahkan style untuk mengubah warna
             style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadiusGeometry.circular(8)
+              ),
+              backgroundColor: colorScheme.onSurface
        // Menggunakan warna custom Anda
             ),
             onPressed: () {
@@ -206,10 +224,18 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                   AppRoutes.adminDashboard,
                 );
               } else {
-                Navigator.pushReplacementNamed(context, AppRoutes.home);
+                Navigator.pushReplacementNamed(context, AppRoutes.main);
               }
             },
-            child: const Text("Sign In"),
+            child: Text(
+              "Login",
+              style: AppText.body.copyWith(
+                color : colorScheme.onPrimary,
+                fontSize: 14.5,
+                fontWeight: FontWeight.bold
+                
+              ),
+              ),
           ),
         ),
       ],
@@ -226,31 +252,44 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
   // Tugas: Fungsi "cetakan" agar desain TextField rapi, seragam, dan kodenya tidak diulang-ulang
   // ==========================================
 Widget _buildRegisterForm() {
+  final colorScheme = Theme.of(context).colorScheme;
     return Column(
       key: const ValueKey('register'),
       children: [
         TextField(
           controller: _nameController,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: "Full Name",
-            prefixIcon: Icon(Icons.person_outline),
+            hintStyle: AppText.body.copyWith(
+              color: colorScheme.onSurface,
+              fontSize: 15
+            ),
+            prefixIcon: Icon(Icons.person),
           ),
         ),
         const SizedBox(height: 16),
         TextField(
           controller: _emailController,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: "E-mail address",
-            prefixIcon: Icon(Icons.email_outlined),
+            hintStyle: AppText.body.copyWith(
+              color: colorScheme.onSurface,
+              fontSize: 15
+            ),
+            prefixIcon: Icon(Icons.email),
           ),
         ),
         const SizedBox(height: 16),
         TextField(
           controller: _passwordController,
           obscureText: true,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: "Password",
-            prefixIcon: Icon(Icons.lock_outline),
+            hintStyle: AppText.body.copyWith(
+              color: colorScheme.onSurface,
+              fontSize: 15
+            ),
+            prefixIcon: Icon(Icons.lock),
           ),
         ),
         const SizedBox(height: 32),
@@ -258,13 +297,26 @@ Widget _buildRegisterForm() {
         // --- TOMBOL SIGN UP ---
         SizedBox(
           width: double.infinity,
+          height: 44,
           child: FilledButton(
             onPressed: () {
               setState(() {
                 isLoginMode = true;
               });
             },
-            child: const Text("Sign Up"),
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8)
+              )
+            ),
+            child: Text(
+              "Sign Up",
+              style: AppText.body.copyWith(
+                color: colorScheme.onPrimary,
+                fontSize: 14.5,
+                fontWeight: FontWeight.bold
+              ),
+              ),
           ),
         ),
       ],

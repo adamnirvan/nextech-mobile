@@ -37,6 +37,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     // Ambil tinggi layar untuk proporsi gambar Lottie
     final screenHeight = MediaQuery.of(context).size.height;
     final colorScheme = Theme.of(context).colorScheme;
+    
 
     return Scaffold(
       body: SafeArea(
@@ -94,9 +95,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   // KONDISI 1: Halaman Terakhir (Tombol Get Started)
                   ? FilledButton(
                       onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.auth),
+                      
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)
+                        )
+                      ),
                       child: Text(
                         "Get Started",
                         style: AppText.subtitle.copyWith(color: colorScheme.onPrimary),
+                        
                       ),
                     )
                   // KONDISI 2: Halaman 1 & 2 (Skip, Titik, Next)
@@ -105,9 +114,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       children: [
                         TextButton(
                           onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.auth),
+                          style: TextButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)
+                            )
+                          ),
                           child: Text(
                             "Skip",
-                            style: AppText.body.copyWith(color: Colors.grey),
+                            style: AppText.body.copyWith(color: colorScheme.primary),
+                            
                           ),
                         ),
                         
@@ -147,6 +162,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           style: FilledButton.styleFrom(
                             minimumSize: const Size(80, 40),
                             padding: const EdgeInsets.symmetric(horizontal: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)
+                            )
                           ),
                           child: Text(
                             "Next",
