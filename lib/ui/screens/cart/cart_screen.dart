@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:nextech_mobile/core/theme/app_text.dart'; // Sesuaikan path
+import 'package:nextech_mobile/core/theme/app_text.dart'; 
+import 'package:intl/intl.dart';
+import '../../../routes/app_routes.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -54,6 +56,16 @@ class _CartScreenState extends State<CartScreen> {
     setState(() => _cartItems.removeAt(index));
   }
 
+  String _formatRupiah(double number) {
+    // Menggunakan NumberFormat dari package intl
+    final formatCurrency = NumberFormat.currency(
+      locale: 'id_ID', // Format Indonesia (menggunakan titik untuk ribuan)
+      symbol: 'Rp ',     // Tambahkan simbol Rp di depan
+      decimalDigits: 0,  // Tidak ada angka di belakang koma
+    );
+    return formatCurrency.format(number);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -61,7 +73,13 @@ class _CartScreenState extends State<CartScreen> {
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        title: const Text("My Cart"),
+        title: Text(
+          "My Cart",
+            style: AppText.heading1.copyWith(
+              fontSize: 22,
+              fontWeight: FontWeight.bold
+          ),
+        ),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -140,7 +158,7 @@ class _CartScreenState extends State<CartScreen> {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
-                                        "Rp ${(item['price'] as num).toDouble().toStringAsFixed(0)}", 
+                                        _formatRupiah((item['price'] as num).toDouble()), 
                                         style: AppText.body.copyWith(fontWeight: FontWeight.bold),
                                       ),
                                       
@@ -200,7 +218,7 @@ class _CartScreenState extends State<CartScreen> {
               decoration: BoxDecoration(
                 color: colorScheme.surface,
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5)),
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5)),
                 ],
               ),
               child: Row(
@@ -213,7 +231,7 @@ class _CartScreenState extends State<CartScreen> {
                       Text("Total Price", style: AppText.caption.copyWith(color: Colors.grey)),
                       const SizedBox(height: 4),
                       Text(
-                        "Rp ${_totalPrice.toStringAsFixed(0)}", 
+                        _formatRupiah(_totalPrice), 
                         style: AppText.heading2.copyWith(color: colorScheme.primary),
                       ),
                     ],
@@ -222,7 +240,7 @@ class _CartScreenState extends State<CartScreen> {
                   // Tombol Checkout Custom (Dibuat manual, bukan FilledButton)
                   GestureDetector(
                     onTap: _cartItems.isEmpty ? null : () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lanjut ke Pembayaran!")));
+                      Navigator.pushNamed(context, AppRoutes.checkout);
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "204399458840",
+    "project_id": "nextech-mobile",
+    "storage_bucket": "nextech-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:204399458840:android:c8ecc5b79e7e7c1c67216d",
+        "android_client_info": {
+          "package_name": "com.example.nextech_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC7850BU4Ww5tF5iKW__ME5BMHnKXSNAmc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

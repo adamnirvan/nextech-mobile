@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'routes/app_routes.dart'; // Cukup import file rute saja
 import '../../../core/theme/app_theme.dart';
+import 'firebase_options.dart';
 
 void main() {
   runApp(const NextechApp());
