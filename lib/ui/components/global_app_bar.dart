@@ -9,6 +9,7 @@ class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
   final Color contentColor;
   // TAMBAHAN BARU: Parameter untuk menampilkan tombol back
   final bool showBackButton; 
+  
 
   const GlobalAppBar({
     super.key,
@@ -18,6 +19,7 @@ class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.backgroundColor = const Color.fromARGB(218, 0, 0, 0),
     this.contentColor = Colors.white,
     this.showBackButton = false, // Default false agar layar lain tidak berubah
+    
   });
 
   @override
@@ -63,29 +65,38 @@ class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
 
 Widget _buildSearchBar(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        // Navigasi ke halaman pencarian sesungguhnya
-        Navigator.pushNamed(context, AppRoutes.search);
+      onTap: () async {
+        // 1. Tunggu user ngetik di Search Screen
+        final result = await Navigator.pushNamed(context, AppRoutes.search);
+        
+        // 2. Kalau user beneran ngetik
+        if (result != null && result is String && result.isNotEmpty) {
+           // 3. LANGSUNG BUKA DISCOVERY SEBAGAI HALAMAN BARU! (Tanpa NavBar)
+           Navigator.pushNamed(
+             context, 
+             AppRoutes.discovery, 
+             arguments: {'searchQuery': result} // Bawa teksnya
+           );
+        }
       },
+
       child: Container(
         height: 40,
-        // Tambahkan padding horizontal agar isi tidak mepet ke tepi (menggantikan contentPadding TextField)
         padding: const EdgeInsets.symmetric(horizontal: 12), 
         decoration: BoxDecoration(
           color: const Color(0xFFFFFFFF), 
           borderRadius: BorderRadius.circular(8),
         ),
-        // Menggunakan Row biasa alih-alih TextField
         child: Row(
           children: [
             const Icon(Icons.search, color: Color(0xFF7E7E7E), size: 20),
-            const SizedBox(width: 8), // Jarak antara ikon dan teks
+            const SizedBox(width: 8), 
             const Expanded(
               child: Text(
                 "Find your next tech...",
                 style: TextStyle(
                   color: Color(0xFF7E7E7E), 
-                  fontSize: 15, // Disesuaikan agar mirip dengan TextField asli
+                  fontSize: 15, 
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

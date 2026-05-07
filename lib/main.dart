@@ -1,9 +1,13 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'routes/app_routes.dart'; // Cukup import file rute saja
+import 'routes/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
 import 'firebase_options.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const NextechApp());
 }
 
@@ -15,12 +19,10 @@ class NextechApp extends StatelessWidget {
     return MaterialApp(
       title: 'Nextech',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme, // Tema Terang
-      darkTheme: AppTheme.darkTheme, // Tema Gelap
-      // 3. FITUR SAKTI: Otomatis ikut pengaturan Dark/Light mode di HP user!
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
 
-      // Pintu gerbang navigasi ditaruh di sini!
       initialRoute: AppRoutes.splash,
       routes: AppRoutes.getRoutes(),
     );

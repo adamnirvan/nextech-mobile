@@ -14,6 +14,7 @@ import '../ui/screens/order/order_screen.dart';
 import '../ui/screens/checkout/checkout_screen.dart';
 import '../ui/screens/checkout/payment_success_screen.dart';
 import '../ui/screens/address/address_list_screen.dart';
+import '../ui/screens/discovery/discovery_screen.dart';
 // Pastikan ini di-import
 
 class AppRoutes {
@@ -31,6 +32,7 @@ class AppRoutes {
   static const String paymentSuccess = '/payment-success';
   static const String addressList = '/address-list';
   static const String addressForm = '/address-form';
+  static const String discovery = '/discovery';
 
   
 
@@ -51,6 +53,7 @@ class AppRoutes {
       paymentSuccess: (context) => const PaymentSuccessScreen(),
       addressList: (context) => const AddressListScreen(),
       addressForm: (context) => const AddressFormScreen(),
+      discovery: (context) => const DiscoveryScreen()
     };
   }
 }

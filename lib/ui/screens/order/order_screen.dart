@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:url_launcher/url_launcher.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -8,47 +13,9 @@ class OrdersScreen extends StatefulWidget {
   State<OrdersScreen> createState() => _OrdersScreenState();
 }
 
-class _OrdersScreenState extends State<OrdersScreen>
-    with SingleTickerProviderStateMixin {
+class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _initialTabIndex = 0;
-
-  // --- 1. DUMMY DATA API (Tabel Order_Items / Snapshot) ---
-  // Perhatikan bahwa setiap status punya data ekstra yang berbeda
-  final List<Map<String, dynamic>> dummyOrders = [
-    {
-      "order_id": "NX-9982310",
-      "status": "UNPAID",
-      "title": "Nextech Pro Max Ultra Titanium",
-      "specs": "Graphite Black | 256GB",
-      "qty": 1,
-      "price": 18999000,
-      "image_url":
-          "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=500",
-    },
-    {
-      "order_id": "NX-9982442",
-      "status": "SHIPPED",
-      "title": "Nextech Vision 34\" Ultrawide",
-      "specs": "OLED | 175Hz",
-      "qty": 1,
-      "price": 8999000,
-      "image_url":
-          "https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=500",
-      "estimated_arrival": "Estimasi tiba: 15 Apr 2026", // Khusus Shipped
-    },
-    {
-      "order_id": "NX-9981111",
-      "status": "COMPLETED",
-      "title": "Nextech Audio Master Over-Ear",
-      "specs": "Silver | Wireless",
-      "qty": 2,
-      "price": 3250000,
-      "image_url":
-          "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=500",
-      "completed_at": "Diterima pada: 12 Apr 2026, 14:30", // Khusus Completed
-    },
-  ];
 
   @override
   void didChangeDependencies() {
@@ -57,27 +24,85 @@ class _OrdersScreenState extends State<OrdersScreen>
     if (args != null && args is int) {
       _initialTabIndex = args;
     }
-
-    _tabController = TabController(
-      length: 3,
-      vsync: this,
-      initialIndex: _initialTabIndex,
-    );
+    _tabController = TabController(length: 4, vsync: this, initialIndex: _initialTabIndex);
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  // Format Rupiah Helper
   String _formatRupiah(num number) {
-    return NumberFormat.currency(
-      locale: 'id_ID',
-      symbol: 'Rp ',
-      decimalDigits: 0,
-    ).format(number);
+    return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(number);
+  }
+
+  // --- LOGIKA BATALKAN PESANAN ---
+  Future<void> _cancelOrder(String orderId) async {
+    // 1. Tampilkan Dialog Konfirmasi
+    bool confirm = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Batalkan Pesanan?"),
+        content: const Text("Pesanan ini akan dibatalkan dan dihapus dari daftar."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Tidak", style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Ya, Batalkan", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    // 2. Jika user klik "Ya, Batalkan"
+    if (confirm) {
+      try {
+        await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
+          'status': 'cancelled',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Pesanan berhasil dibatalkan")),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Gagal membatalkan pesanan: $e")),
+          );
+        }
+      }
+    }
+  }
+
+  // --- LOGIKA PESANAN DITERIMA ---
+  Future<void> _confirmReceipt(String orderId) async {
+    try {
+      await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
+        'status': 'completed',
+        'completedAt': FieldValue.serverTimestamp(),
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pesanan selesai! Terima kasih sudah berbelanja.")));
+    } catch (e) {
+      print("Error completing order: $e");
+    }
+  }
+
+  // --- LOGIKA PAY NOW (RE-OPEN XENDIT) ---
+  Future<void> _payNow(String orderId, int amount, String name) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://192.168.1.9:3000/create-invoice'), // Pastikan IP ini sesuai dengan IP terbarumu
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'orderId': orderId, 'amount': amount, 'customerName': name}),
+      );
+      final data = jsonDecode(response.body);
+      if (data['success']) {
+        launchUrl(Uri.parse(data['checkoutUrl']), mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      print("Error paying again: $e");
+    }
   }
 
   @override
@@ -86,31 +111,20 @@ class _OrdersScreenState extends State<OrdersScreen>
       backgroundColor: const Color(0xFFF5F6F8),
       appBar: AppBar(
         backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          "My Orders",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
+        title: const Text("My Orders", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true, 
+          tabAlignment: TabAlignment.start, 
+          labelPadding: const EdgeInsets.symmetric(horizontal: 20),
           indicatorColor: Colors.black,
-          indicatorWeight: 2.0,
           labelColor: Colors.black,
           unselectedLabelColor: Colors.grey,
-          labelStyle: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-          ),
-          unselectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.normal,
-            fontSize: 14,
-          ),
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 14),
           tabs: const [
             Tab(text: "Unpaid"),
+            Tab(text: "Processing"),
             Tab(text: "Shipped"),
             Tab(text: "Completed"),
           ],
@@ -119,270 +133,137 @@ class _OrdersScreenState extends State<OrdersScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildOrderList("UNPAID"),
-          _buildOrderList("SHIPPED"),
-          _buildOrderList("COMPLETED"),
+          _buildOrderList("unpaid"),
+          _buildOrderList("processing"),
+          _buildOrderList("shipped"),
+          _buildOrderList("completed"),
         ],
       ),
     );
   }
 
-  // --- 2. LOGIKA FILTER DATA BERDASARKAN TAB ---
   Widget _buildOrderList(String targetStatus) {
-    // Saring data dummy yang statusnya cocok dengan tab saat ini
-    final filteredOrders = dummyOrders
-        .where((order) => order['status'] == targetStatus)
-        .toList();
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const Center(child: Text("Please Login"));
 
-    if (filteredOrders.isEmpty) {
-      return Center(
-        child: Text(
-          "Belum ada pesanan dengan status $targetStatus.",
-          style: const TextStyle(color: Colors.grey),
-        ),
-      );
-    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .where('userId', isEqualTo: user.uid)
+          .where('status', isEqualTo: targetStatus)
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(child: Text("No orders in ${targetStatus.toUpperCase()}"));
+        }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      child: Column(
-        children: [
-          // Render semua card yang lolos filter
-          ...filteredOrders.map(
-            (order) => Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: _buildOrderCard(order),
-            ),
-          ),
-          const SizedBox(height: 30),
-        ],
-      ),
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: snapshot.data!.docs.length,
+          itemBuilder: (context, index) {
+            var order = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+            return _buildOrderCard(order);
+          },
+        );
+      },
     );
   }
 
-  // --- 3. KARTU PESANAN DINAMIS ---
-  Widget _buildOrderCard(Map<String, dynamic> orderData) {
-    final String status = orderData['status'];
-
-    // Variabel dinamis untuk warna dan label
-    Color badgeColor;
-    Color badgeTextColor;
-    String statusLabel;
-
-    if (status == "UNPAID") {
-      badgeColor = Colors.red.shade50;
-      badgeTextColor = Colors.red.shade700;
-      statusLabel = "WAITING FOR PAYMENT";
-    } else if (status == "SHIPPED") {
-      badgeColor = Colors.orange.shade50;
-      badgeTextColor = Colors.orange.shade800;
-      statusLabel = "SHIPPED";
-    } else {
-      badgeColor = Colors.green.shade50;
-      badgeTextColor = Colors.green.shade700;
-      statusLabel = "COMPLETED";
-    }
-
+  Widget _buildOrderCard(Map<String, dynamic> order) {
+    String status = order['status'];
+    var firstItem = order['items'][0];
+    
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-      ),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // HEADER (Order ID & Status Badge)
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                const Icon(Icons.shopping_bag, size: 18, color: Colors.black87),
-                const SizedBox(width: 8),
-                Text(
-                  orderData['order_id'],
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: Colors.black87,
-                  ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(order['orderId'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              _buildStatusBadge(status),
+            ],
+          ),
+          const Divider(height: 24),
+          Row(
+            children: [
+              Image.network(firstItem['image'], width: 60, height: 60, fit: BoxFit.cover),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(firstItem['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text("${firstItem['qty']} item | ${firstItem['variant']}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  ],
                 ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+              ),
+              Text(_formatRupiah(order['payment']['totalAmount']), style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          // --- TOMBOL AKSI BERDASARKAN STATUS ---
+          if (status == 'unpaid')
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // TOMBOL CANCEL DITAMBAHKAN DI SINI
+                OutlinedButton(
+                  onPressed: () => _cancelOrder(order['orderId']),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.red),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))
                   ),
-                  decoration: BoxDecoration(
-                    color: badgeColor,
-                    borderRadius: BorderRadius.circular(4),
+                  child: const Text("CANCEL", style: TextStyle(color: Colors.red)),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: () => _payNow(order['orderId'], order['payment']['totalAmount'], order['shipping']['receiverName']),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))
                   ),
-                  child: Text(
-                    statusLabel,
-                    style: TextStyle(
-                      color: badgeTextColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
+                  child: const Text("PAY NOW", style: TextStyle(color: Colors.white)),
                 ),
               ],
             ),
-          ),
-
-          // BODY (Gambar, Detail, Harga)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            
+          if (status == 'shipped')
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(8),
+                ElevatedButton(
+                  onPressed: () => _confirmReceipt(order['orderId']),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))
                   ),
-                  clipBehavior: Clip.hardEdge,
-                  child: Image.network(
-                    orderData['image_url'],
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.broken_image, color: Colors.grey),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        orderData['title'],
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        orderData['specs'],
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "${orderData['qty']} item",
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Text(
-                  _formatRupiah(orderData['price']),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
+                  child: const Text("ORDER RECEIVED", style: TextStyle(color: Colors.white)),
                 ),
               ],
             ),
-          ),
-
-          // INFO TAMBAHAN (ETA atau Tanggal Selesai)
-          // INFO TAMBAHAN (ETA atau Tanggal Selesai)
-          if (status == "SHIPPED" && orderData['estimated_arrival'] != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 16, top: 12),
-              child: Text(
-                orderData['estimated_arrival'],
-                style: TextStyle(
-                  color: Colors.orange.shade800,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          if (status == "COMPLETED" && orderData['completed_at'] != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 16, top: 12),
-              child: Text(
-                orderData['completed_at'],
-                style: TextStyle(
-                  color: Colors.green.shade700,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-
-          // --- REVISI: FOOTER (HANYA MUNCUL UNTUK UNPAID) ---
-          if (status == "UNPAID") ...[
-            const SizedBox(height: 16),
-            const Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton(
-                    onPressed: () {},
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.black,
-                      side: BorderSide(color: Colors.grey.shade300, width: 1.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: const Text(
-                      "CANCEL ORDER",
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: const Text(
-                      "PAY NOW",
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ] else ...[
-            // Beri sedikit jarak bawah untuk card yang Shipped & Completed agar tidak terlalu mepet
-            const SizedBox(height: 16),
-          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    Color color = Colors.grey;
+    if (status == 'unpaid') color = Colors.red;
+    if (status == 'processing') color = Colors.blue;
+    if (status == 'shipped') color = Colors.orange;
+    if (status == 'completed') color = Colors.green;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+      child: Text(status.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
     );
   }
 }

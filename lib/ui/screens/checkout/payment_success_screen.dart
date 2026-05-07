@@ -3,14 +3,65 @@ import 'package:nextech_mobile/core/theme/app_text.dart';
 import '../../../routes/app_routes.dart';
 import 'package:lottie/lottie.dart';
 
-class PaymentSuccessScreen extends StatelessWidget {
+// 👇 1. Tambahkan dua import ini untuk API
+import 'package:http/http.dart' as http; 
+import 'dart:convert'; 
+
+// 👇 2. Ubah menjadi StatefulWidget
+class PaymentSuccessScreen extends StatefulWidget {
   const PaymentSuccessScreen({super.key});
 
   @override
+  State<PaymentSuccessScreen> createState() => _PaymentSuccessScreenState();
+}
+
+class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
+  String _paymentMethod = "Loading...";
+  bool _isFetching = true;
+  bool _hasFetched = false; // Rem agar tidak spam API
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    // 👇 3. Pasang Rem: Cek apakah sudah pernah fetch data?
+    if (!_hasFetched) {
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args != null && args['orderId'] != null) {
+        _fetchPaymentStatus(args['orderId']);
+        _hasFetched = true; // Tandai bahwa sudah fetch!
+      }
+    }
+  }
+
+  Future<void> _fetchPaymentStatus(String orderId) async {
+    try {
+      final response = await http.get(Uri.parse('http://192.168.1.7:3000/get-payment-status/$orderId'));
+      final data = jsonDecode(response.body);
+
+      if (data['success']) {
+        setState(() {
+          _paymentMethod = "${data['paymentMethod']} (${data['channel']})";
+          _isFetching = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _paymentMethod = "Gagal memuat data";
+        _isFetching = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+    final String orderId = args?['orderId'] ?? '-';
+    final String amount = args?['amount'] ?? '0';
+
     return Scaffold(
       backgroundColor: Colors.white,
-      // PopScope mencegah user menekan tombol 'Back' HP dan kembali ke halaman Checkout yang sudah lunas
       body: PopScope(
         canPop: false,
         child: Container(
@@ -51,11 +102,23 @@ class PaymentSuccessScreen extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    _buildRowInfo("Transaction ID", "#NT-882931"),
+                    _buildRowInfo("Transaction ID:", orderId),
                     const Divider(height: 24),
-                    _buildRowInfo("Payment Method", "GoPay"),
+                    
+                    // 👇 4. Masukkan variabel _paymentMethod di sini
+                    _buildRowInfo("Payment Method", _paymentMethod), 
+                    
                     const Divider(height: 24),
-                    _buildRowInfo("Total Amount", "Rp 25.050.000"),
+                    
+                    // 👇 5. Implementasi style khusus untuk Total Harga
+                    _buildRowInfo(
+                      "Total Amount", 
+                      "Rp $amount",
+                      valueStyle: AppText.subtitle.copyWith(
+                        color: Colors.green.shade700, 
+                        fontWeight: FontWeight.bold
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -67,33 +130,43 @@ class PaymentSuccessScreen extends StatelessWidget {
                 height: 55,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Navigasi ke halaman Order (Tab Shipped)
                     Navigator.pushNamedAndRemoveUntil(
-                      context, 
-                      AppRoutes.order, 
+                      context,
+                      AppRoutes.order,
                       (route) => route.isFirst,
-                      arguments: 1 // Bersihkan history agar tidak bisa back ke checkout
+                      arguments: 1, 
                     );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   child: const Text(
                     "Track My Order",
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
               const SizedBox(height: 16),
               TextButton(
                 onPressed: () {
-                  // Kembali ke Home
-                  Navigator.pushNamedAndRemoveUntil(context, AppRoutes.main, (route) => false);
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    AppRoutes.main,
+                    (route) => false,
+                  );
                 },
                 child: Text(
                   "Back to Homepage",
-                  style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -103,13 +176,22 @@ class PaymentSuccessScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildRowInfo(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-      ],
+  Widget _buildRowInfo(String label, String value, {TextStyle? valueStyle}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: AppText.body.copyWith(color: Colors.grey.shade600),
+          ),
+          Text(
+            value,
+            style: valueStyle ?? AppText.body.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
 }
