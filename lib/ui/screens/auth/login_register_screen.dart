@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../routes/app_routes.dart';
 import 'package:nextech_mobile/core/theme/app_text.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginRegisterScreen extends StatefulWidget {
   const LoginRegisterScreen({super.key});
@@ -10,19 +12,11 @@ class LoginRegisterScreen extends StatefulWidget {
 }
 
 class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
-  // ==========================================
-  // STATE (INGATAN APLIKASI)
-  // ==========================================
-  // isLoginMode: Penentu apakah layar menampilkan Login (true) atau Register (false)
   bool isLoginMode = true;
-
-  // Controller: Bertugas menangkap teks yang diketik user di dalam kotak input
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
 
-  // dispose: Wajib ada untuk "membuang" controller saat halaman ditutup
-  // Tujuannya agar aplikasi tidak bocor memori (Memory Leak) dan lemot
   @override
   void dispose() {
     _emailController.dispose();
@@ -31,54 +25,42 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
     super.dispose();
   }
 
-  // ==========================================
-  // 1. MAIN BUILD (SI SUTRADARA)
-  // Tugas: Menyusun kerangka halaman dan mengatur form mana yang tampil
-  // ==========================================
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      // SafeArea: Agar tampilan tidak tertutup "poni" kamera HP
       body: SafeArea(
-        // SingleChildScrollView: Agar layar bisa di-scroll saat keyboard HP muncul
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.stretch, // Bikin elemen melebar penuhi layar
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 45),
-
-              // --- HEADER (Judul & Subjudul) ---
               Image.asset(
-                'assets/icon/nextech_logo_black.png', // Ganti dengan lokasi dan nama file logomu!
-                height:
-                    30, // Atur tingginya di sini biar nggak kebesaran/kekecilan
+                'assets/icon/nextech_logo_black.png',
+                height: 30,
                 fit: BoxFit.contain,
-                color: colorScheme.onSurface 
+                color: colorScheme.onSurface,
               ),
 
               const SizedBox(height: 50),
               Text(
                 isLoginMode ? "Login to your account" : "Create an account",
-                style: AppText.heading2, 
+                style: AppText.heading2,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
 
-              // --- SLIDER TOGGLE (Tombol ganti mode) ---
+              //SLIDER TOGGLE
               Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color:
-                      Colors.grey.shade100, // Warna background lintasan slider
+                  color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
-                    // Tombol Kiri: Login
                     Expanded(
                       child: GestureDetector(
                         onTap: () => setState(
@@ -88,7 +70,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
                             color: isLoginMode
-                                ? colorScheme.primary 
+                                ? colorScheme.primary
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -97,13 +79,15 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                             textAlign: TextAlign.center,
                             style: AppText.body.copyWith(
                               fontWeight: FontWeight.bold,
-                              color: isLoginMode ? colorScheme.onPrimary : Colors.grey,
+                              color: isLoginMode
+                                  ? colorScheme.onPrimary
+                                  : Colors.grey,
                             ),
                           ),
                         ),
                       ),
                     ),
-                    // Tombol Kanan: Register
+
                     Expanded(
                       child: GestureDetector(
                         onTap: () => setState(
@@ -122,7 +106,9 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                             textAlign: TextAlign.center,
                             style: AppText.body.copyWith(
                               fontWeight: FontWeight.bold,
-                              color: !isLoginMode ? colorScheme.onPrimary : Colors.grey,
+                              color: !isLoginMode
+                                  ? colorScheme.onPrimary
+                                  : Colors.grey,
                             ),
                           ),
                         ),
@@ -137,9 +123,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
               // AnimatedSwitcher: Memberikan efek fade saat berganti form
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
-                child: isLoginMode
-                    ? _buildLoginForm(context)
-                    : _buildRegisterForm(),
+                child: isLoginMode ? _buildLoginForm() : _buildRegisterForm(),
               ),
             ],
           ),
@@ -148,25 +132,18 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
     );
   }
 
-  // ==========================================
-  // 2. AKTOR: FORM LOGIN
-  // Tugas: Menampilkan kotak Email, Password, dan tombol Sign In
-  // ==========================================
-  Widget _buildLoginForm(BuildContext context) {
+  Widget _buildLoginForm() {
     final colorScheme = Theme.of(context).colorScheme;
     return Column(
-      key: const ValueKey(
-        'login',
-      ), // Key ini wajib agar AnimatedSwitcher tahu form telah berubah
+      key: const ValueKey('login'),
       children: [
-
-      TextField(
+        TextField(
           controller: _emailController,
           decoration: InputDecoration(
-            hintText:  "E-mail address",
+            hintText: "E-mail address",
             hintStyle: AppText.body.copyWith(
-              color: colorScheme.onSurface, 
-              fontSize: 15
+              color: colorScheme.onSurface,
+              fontSize: 15,
             ),
             prefixIcon: Icon(Icons.email_rounded),
           ),
@@ -179,26 +156,22 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
             hintText: "Password",
             hintStyle: AppText.body.copyWith(
               color: colorScheme.onSurface,
-              fontSize: 15
+              fontSize: 15,
             ),
             prefixIcon: Icon(Icons.lock_rounded),
           ),
-        ), 
+        ),
         const SizedBox(height: 8),
 
         // --- TOMBOL FORGOT PASSWORD ---
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
-            onPressed:
-                () {
-                  print("Tombol forgot password diklik");
-                }, 
+            onPressed: () {
+            },
             child: Text(
               "Forgot password?",
-              style: AppText.body.copyWith(
-                color: colorScheme.onSurface
-              ),
+              style: AppText.body.copyWith(color: colorScheme.onSurface),
             ),
           ),
         ),
@@ -212,47 +185,44 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
             // Menambahkan style untuk mengubah warna
             style: FilledButton.styleFrom(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadiusGeometry.circular(8)
+                borderRadius: BorderRadiusGeometry.circular(8),
               ),
-              backgroundColor: colorScheme.onSurface
-       // Menggunakan warna custom Anda
+              backgroundColor: colorScheme.onSurface,
             ),
-            onPressed: () {
-              if (_emailController.text.toLowerCase().contains("admin")) {
-                Navigator.pushReplacementNamed(
-                  context,
-                  AppRoutes.adminDashboard,
+            onPressed: () async {
+              try {
+                await FirebaseAuth.instance.signInWithEmailAndPassword(
+                  email: _emailController.text.trim(),
+                  password: _passwordController.text.trim(),
                 );
-              } else {
+                if (!mounted) return;
                 Navigator.pushReplacementNamed(context, AppRoutes.main);
+              } on FirebaseAuthException catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(e.message ?? "Login gagal. Coba lagi!"),
+                  ),
+                );
               }
             },
+
             child: Text(
               "Login",
               style: AppText.body.copyWith(
-                color : colorScheme.onPrimary,
+                color: colorScheme.onPrimary,
                 fontSize: 14.5,
-                fontWeight: FontWeight.bold
-                
+                fontWeight: FontWeight.bold,
               ),
-              ),
+            ),
           ),
         ),
       ],
     );
   }
 
-  // ==========================================
-  // 3. AKTOR: FORM REGISTER
-  // Tugas: Menampilkan kotak Nama, Email, Password, dan tombol Sign Up
-  // ==========================================
-
-  // ==========================================
-  // 4. TUKANG JAHIT: CUSTOM INPUT
-  // Tugas: Fungsi "cetakan" agar desain TextField rapi, seragam, dan kodenya tidak diulang-ulang
-  // ==========================================
-Widget _buildRegisterForm() {
-  final colorScheme = Theme.of(context).colorScheme;
+  Widget _buildRegisterForm() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       key: const ValueKey('register'),
       children: [
@@ -262,7 +232,7 @@ Widget _buildRegisterForm() {
             hintText: "Full Name",
             hintStyle: AppText.body.copyWith(
               color: colorScheme.onSurface,
-              fontSize: 15
+              fontSize: 15,
             ),
             prefixIcon: Icon(Icons.person),
           ),
@@ -274,7 +244,7 @@ Widget _buildRegisterForm() {
             hintText: "E-mail address",
             hintStyle: AppText.body.copyWith(
               color: colorScheme.onSurface,
-              fontSize: 15
+              fontSize: 15,
             ),
             prefixIcon: Icon(Icons.email),
           ),
@@ -287,7 +257,7 @@ Widget _buildRegisterForm() {
             hintText: "Password",
             hintStyle: AppText.body.copyWith(
               color: colorScheme.onSurface,
-              fontSize: 15
+              fontSize: 15,
             ),
             prefixIcon: Icon(Icons.lock),
           ),
@@ -299,24 +269,75 @@ Widget _buildRegisterForm() {
           width: double.infinity,
           height: 44,
           child: FilledButton(
-            onPressed: () {
-              setState(() {
-                isLoginMode = true;
-              });
+            onPressed: () async {
+              if (_nameController.text.trim().isEmpty ||
+                  _emailController.text.trim().isEmpty ||
+                  _passwordController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("All field must be fill!"),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              try {
+                UserCredential userCredential = await FirebaseAuth.instance
+                    .createUserWithEmailAndPassword(
+                      email: _emailController.text.trim(),
+                      password: _passwordController.text.trim(),
+                    );
+
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(userCredential.user!.uid)
+                    .set({
+                      'name': _nameController.text.trim(),
+                      'email': _emailController.text.trim(),
+                      'role': 'customer',
+                      'created_at': FieldValue.serverTimestamp(),
+                    });
+
+                if (!mounted) return;
+
+                await FirebaseAuth.instance.signOut();
+                _nameController.clear();
+                _passwordController.clear();
+
+                setState(() {
+                  isLoginMode = true;
+                });
+
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Registrasi berhasil! Silakan Login."),
+                    backgroundColor: Colors.green,
+                    ),
+                    );
+                    
+              } on FirebaseAuthException catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(e.message ?? "Gagal mendaftar!"),
+                  backgroundColor: Colors.red,),
+                );
+              }
             },
+
             style: FilledButton.styleFrom(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8)
-              )
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             child: Text(
               "Sign Up",
               style: AppText.body.copyWith(
                 color: colorScheme.onPrimary,
                 fontSize: 14.5,
-                fontWeight: FontWeight.bold
+                fontWeight: FontWeight.bold,
               ),
-              ),
+            ),
           ),
         ),
       ],

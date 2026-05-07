@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../routes/app_routes.dart'; // Sesuaikan lokasi file routemu
 import 'package:nextech_mobile/ui/components/global_app_bar.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -204,12 +205,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       width: double.infinity,
                       height: 50,
                       child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pushNamedAndRemoveUntil(
-                            context,
-                            AppRoutes.auth,
-                            (route) => false,
-                          );
+                        onPressed: () async{
+                          await FirebaseAuth.instance.signOut();
+
+                          // 👇 3. Baru lakukan perpindahan layar ke Login/Auth
+                          if (context.mounted) {
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              AppRoutes.auth, // Keputusanmu melempar ke Auth sudah 100% benar!
+                              (route) => false,
+                            );
+                          }
                         },
                         icon: const Icon(Icons.logout, color: Colors.red),
                         label: const Text(

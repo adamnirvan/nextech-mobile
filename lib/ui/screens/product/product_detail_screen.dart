@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:nextech_mobile/core/theme/app_text.dart'; // Sesuaikan path
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:nextech_mobile/core/theme/app_text.dart';
+import 'package:nextech_mobile/ui/components/product_model.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../../routes/app_routes.dart'; // Pastikan path import rute ini sesuai dengan project-mu
 
 class ProductDetailScreen extends StatefulWidget {
   const ProductDetailScreen({super.key});
@@ -10,335 +14,636 @@ class ProductDetailScreen extends StatefulWidget {
 }
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
-  // --- 1. STATE VARIABLES (API READY) ---
-  bool _isLoading = true; // Status untuk nunggu data dari API
-  int _currentImageIndex = 0;
-  final Map<String, String> _selectedVariants = {};
-  
-  // Wadah kosong yang nanti akan diisi oleh respon Database
-  Map<String, dynamic> _productData = {}; 
+  bool _isLoading = true;
+  ProductModel? _product;
+  final Map<String, dynamic> _selectedVariants = {};
+  String _productId = "";
 
   @override
+
+  //Menangkap data product ID
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Normalnya, kita menangkap ID produk dari halaman sebelumnya
-    // final String productId = ModalRoute.of(context)?.settings.arguments as String;
-    // _fetchProductDetail(productId);
-    
-    // Karena belum nyambung beneran, kita panggil fungsi simulasi
-    if (_isLoading) {
-      _fetchProductDetail("dummy_id");
+    final String? id = ModalRoute.of(context)?.settings.arguments as String?;
+
+    if (id != null && _isLoading) {
+      _productId = id;
+      _fetchProductDetail(id);
     }
   }
 
-  // --- 2. FUNGSI SIMULASI AMBIL DATA DARI DATABASE (FIRESTORE) ---
+
+  //Mengambil data product detail dari firestore
   Future<void> _fetchProductDetail(String id) async {
-    // Simulasi delay internet 1 detik
-    await Future.delayed(const Duration(seconds: 1)); 
+    try {
+      DocumentSnapshot doc = await FirebaseFirestore.instance.collection('products').doc(id).get();
+      if (doc.exists) {
+        setState(() {
+          _product = ProductModel.fromFirestore(doc);
+          _product!.variants.forEach((key, options) {
+            if (options is List && options.isNotEmpty) {
+              _selectedVariants[key] = options.first;
+            }
+          });
+          _isLoading = false;
+        });
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      debugPrint("Error detail: $e");
+      setState(() => _isLoading = false);
+    }
+  }
 
-    setState(() {
-      // Data yang seolah-olah baru turun dari server Firebase
-      _productData = {
-        "id": "prod_mac_01",
-        "name": "MacBook Pro M3 14-inch",
-        "price": 24999000,
-        "original_price": 27999000, // Bisa null jika tidak diskon
-        "rating": 4.9,
-        "sold_count": 1250,
-        "description": "The most advanced Mac laptop ever. Featuring the scary fast M3 chip, stunning Liquid Retina XDR display, and up to 22 hours of battery life. Perfect for rendering, coding, and everything in between.",
-        "images": [
-          "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=1000",
-          "https://images.unsplash.com/photo-1531297172864-fb57025816bb?q=80&w=1000",
-          "https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?q=80&w=1000"
+  // --- 1. FUNCTION ADD TO CART ---
+  Future<void> _addToCart(int quantity) async {
+    final User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Silakan login terlebih dahulu.")));
+      return;
+    }
+
+    String variantString = _selectedVariants.isEmpty ? "Standard" : _selectedVariants.values.join("-"); 
+    String safeVariantString = variantString.replaceAll(' ', ''); 
+    String cartDocId = "${_productId}_$safeVariantString"; //membuat id produk unik
+
+    final DocumentReference cartRef = FirebaseFirestore.instance.collection('users').doc(currentUser.uid).collection('cart').doc(cartDocId);
+
+    try {
+      final DocumentSnapshot cartDoc = await cartRef.get();
+      if (cartDoc.exists) {
+        await cartRef.update({
+          'quantity': FieldValue.increment(quantity),
+          'selectedVariants': _selectedVariants,
+        });
+      } else {
+        await cartRef.set({
+          'productId': _productId,
+          'title': _product!.title,
+          'price': _product!.price,
+          'imageUrl': _product!.images.isNotEmpty ? _product!.images.first : _product!.imageUrl,
+          'quantity': quantity,
+          'selectedVariants': _selectedVariants,
+          'addedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (mounted) {
+        Navigator.pop(context); // Tutup bottom sheet
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Berhasil ditambahkan ke keranjang!"), backgroundColor: Colors.green, duration: Duration(seconds: 2)),
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal menambahkan: $e")));
+    }
+  }
+
+  // --- 2. FUNGSI BUY NOW ---
+  void _buyNow(int quantity) {
+    if (_product == null) return;
+
+    String variantString = _selectedVariants.isEmpty ? "Standard" : _selectedVariants.values.join(", ");
+
+    final Map<String, dynamic> checkoutItem = {
+      "id": _productId,
+      "name": _product!.title,
+      "variant": variantString,
+      "price": _product!.price.toDouble(),
+      "qty": quantity,
+      "image": _product!.images.isNotEmpty ? _product!.images.first : _product!.imageUrl,
+      "isFromCart": false,
+    };
+
+    Navigator.pop(context); // Tutup bottom sheet
+    Navigator.pushNamed(context, AppRoutes.checkout, arguments: [checkoutItem]);
+  }
+
+  // --- 3. FUNGSI MEMUNCULKAN BOTTOM SHEET ---
+  void _showActionBottomSheet(bool isBuyNow) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Agar sheet bisa menyesuaikan ukuran saat keyboard muncul/konten panjang
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (BuildContext context) {
+        return ProductActionBottomSheet(
+          product: _product!,
+          initialVariants: _selectedVariants,
+          isBuyNow: isBuyNow,
+          onConfirm: (int quantity, Map<String, dynamic> finalVariants) {
+            // Update varian di UI utama agar sinkron dengan pilihan di bottom sheet
+            setState(() {
+              _selectedVariants.clear();
+              _selectedVariants.addAll(finalVariants);
+            });
+
+            // Eksekusi fungsinya
+            if (isBuyNow) {
+              _buyNow(quantity);
+            } else {
+              _addToCart(quantity);
+            }
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (_isLoading) {
+      return Scaffold(backgroundColor: colorScheme.surface, body: const Center(child: CircularProgressIndicator()));
+    }
+
+    if (_product == null) {
+      return Scaffold(backgroundColor: colorScheme.surface, body: const Center(child: Text("Produk tidak ditemukan")));
+    }
+
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      extendBodyBehindAppBar: true,
+      appBar: _buildCustomAppBar(),
+      // --- 4. SAMBUNGKAN TOMBOL BOTTOM BAR ---
+      bottomNavigationBar: ProductBottomBar(
+        onAddToCart: () => _showActionBottomSheet(false), 
+        onBuyNow: () => _showActionBottomSheet(true),
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ProductImageGallery(images: _product!.images, fallbackImageUrl: _product!.imageUrl),
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ProductMainInfo(product: _product!),
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  
+                  ProductVariantSelector(
+                    variants: _product!.variants,
+                    selectedVariants: _selectedVariants,
+                    onVariantSelected: (title, option) {
+                      setState(() => _selectedVariants[title] = option);
+                    },
+                  ),
+                  
+                  if (_product!.variants.isNotEmpty) ...[
+                    const Divider(),
+                    const SizedBox(height: 16),
+                  ],
+
+                  ProductDescription(description: _product!.description),
+                  const SizedBox(height: 24),
+                  ProductSpecifications(specifications: _product!.specifications),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildCustomAppBar() {
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      leading: IconButton(
+        icon: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.3), shape: BoxShape.circle),
+          child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+        ),
+        onPressed: () => Navigator.pop(context),
+      ),
+      actions: [
+        IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.3), shape: BoxShape.circle),
+            child: const Icon(Icons.shopping_cart_outlined, color: Colors.white, size: 20),
+          ),
+          onPressed: () {
+            Navigator.pushNamed(context, AppRoutes.cart);
+          },
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// WIDGET-WIDGET PECAHAN
+// ============================================================================
+
+// WIDGET BARU: Bottom Sheet Pop-Up untuk Konfirmasi Beli/Cart
+class ProductActionBottomSheet extends StatefulWidget {
+  final ProductModel product;
+  final Map<String, dynamic> initialVariants;
+  final bool isBuyNow;
+  final Function(int quantity, Map<String, dynamic> finalVariants) onConfirm;
+
+  const ProductActionBottomSheet({
+    super.key,
+    required this.product,
+    required this.initialVariants,
+    required this.isBuyNow,
+    required this.onConfirm,
+  });
+
+  @override
+  State<ProductActionBottomSheet> createState() => _ProductActionBottomSheetState();
+}
+
+class _ProductActionBottomSheetState extends State<ProductActionBottomSheet> {
+  int _quantity = 1;
+  late Map<String, dynamic> _localVariants;
+
+  @override
+  void initState() {
+    super.initState();
+    _localVariants = Map.from(widget.initialVariants);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+        left: 20, right: 20, top: 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 80, height: 80,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  image: DecorationImage(
+                    image: NetworkImage(widget.product.images.isNotEmpty ? widget.product.images.first : widget.product.imageUrl),
+                    fit: BoxFit.cover,
+                  )
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.product.title, style: AppText.subtitle, maxLines: 2),
+                    const SizedBox(height: 8),
+                    Text(
+                      NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(widget.product.price),
+                      style: AppText.heading2.copyWith(color: colorScheme.primary),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))
+            ],
+          ),
+          const Divider(height: 32),
+
+          // Panggil Variant Selector yang ada di file ini
+          ProductVariantSelector(
+            variants: widget.product.variants,
+            selectedVariants: _localVariants,
+            onVariantSelected: (title, option) {
+              setState(() => _localVariants[title] = option);
+            },
+          ),
+          
+          if (widget.product.variants.isNotEmpty) const Divider(height: 32),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("Jumlah", style: AppText.subtitle),
+              Container(
+                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.remove, size: 20),
+                      onPressed: () {
+                        if (_quantity > 1) setState(() => _quantity--);
+                      },
+                    ),
+                    Text(_quantity.toString(), style: AppText.body.copyWith(fontWeight: FontWeight.bold)),
+                    IconButton(
+                      icon: const Icon(Icons.add, size: 20),
+                      onPressed: () => setState(() => _quantity++),
+                    ),
+                  ],
+                ),
+              )
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () {
+                widget.onConfirm(_quantity, _localVariants);
+              },
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: colorScheme.primary,
+              ),
+              child: Text(widget.isBuyNow ? "Beli Sekarang" : "Masukkan Keranjang", style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(height: 20),
         ],
-        "variants": {
-          "Color": ["Space Black", "Silver"],
-          "Storage": ["512GB", "1TB", "2TB"],
-        },
-        "specifications": {
-          "Brand": "Apple",
-          "Chipset": "Apple M3 Pro (11-core CPU, 14-core GPU)",
-          "RAM": "18GB Unified Memory",
-          "Display": "14.2-inch Liquid Retina XDR",
-          "OS": "macOS Sonoma",
-        }
-      };
-
-      // Set default varian (Otomatis pilih opsi pertama setelah data masuk)
-      Map<String, dynamic> variants = _productData['variants'];
-      variants.forEach((key, options) {
-        if ((options as List).isNotEmpty) {
-          _selectedVariants[key] = options.first;
-        }
-      });
-
-      _isLoading = false; // Matikan loading
-    });
+      ),
+    );
   }
+}
 
-  // Format Rupiah Helper
-  String _formatRupiah(num number) {
-    return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(number);
+class ProductBottomBar extends StatelessWidget {
+  final VoidCallback onAddToCart;
+  final VoidCallback onBuyNow;
+
+  const ProductBottomBar({super.key, required this.onAddToCart, required this.onBuyNow});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 1,
+            child: OutlinedButton(
+              onPressed: onAddToCart,
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                side: BorderSide(color: colorScheme.primary),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: Icon(Icons.add_shopping_cart, color: colorScheme.primary),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 2,
+            child: FilledButton(
+              onPressed: onBuyNow,
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: colorScheme.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: Text("Buy Now", style: AppText.subtitle.copyWith(color: colorScheme.onPrimary)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
+}
+
+class ProductImageGallery extends StatefulWidget {
+  final List<dynamic> images;
+  final String fallbackImageUrl;
+
+  const ProductImageGallery({super.key, required this.images, required this.fallbackImageUrl});
+
+  @override
+  State<ProductImageGallery> createState() => _ProductImageGalleryState();
+}
+
+class _ProductImageGalleryState extends State<ProductImageGallery> {
+  int _currentImageIndex = 0;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    return Scaffold(
-      backgroundColor: colorScheme.surface,
-      extendBodyBehindAppBar: true, 
-      
-      // HEADER TETAP SAMA
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.black.withOpacity(0.3), shape: BoxShape.circle),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.black.withOpacity(0.3), shape: BoxShape.circle),
-              child: const Icon(Icons.share_outlined, color: Colors.white, size: 20),
-            ),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.black.withOpacity(0.3), shape: BoxShape.circle),
-              child: const Icon(Icons.shopping_cart_outlined, color: Colors.white, size: 20),
-            ),
-            onPressed: () {}, 
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-
-      // BOTTOM NAVBAR: Jangan tampilkan tombol Buy kalau datanya masih loading
-      bottomNavigationBar: _isLoading ? const SizedBox.shrink() : Container(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 1,
-              child: OutlinedButton(
-                onPressed: () {},
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: BorderSide(color: colorScheme.primary),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: Icon(Icons.add_shopping_cart, color: colorScheme.primary),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              flex: 2,
-              child: FilledButton(
-                onPressed: () {},
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: colorScheme.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: Text("Buy Now", style: AppText.subtitle.copyWith(color: colorScheme.onPrimary)),
-              ),
-            ),
-          ],
-        ),
-      ),
-
-      // --- 3. BODY UTAMA (DILINDUNGI OLEH LOADING STATE) ---
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator()) 
-        : SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // --- A. HERO IMAGE GALLERY ---
-                SizedBox(
-                  height: screenHeight * 0.45, 
-                  child: Stack(
-                    children: [
-                      PageView.builder(
-                        onPageChanged: (index) => setState(() => _currentImageIndex = index),
-                        itemCount: (_productData['images'] as List).length,
-                        itemBuilder: (context, index) {
-                          // IMPLEMENTASI IMAGE.NETWORK DI SINI
-                          return Container(
-                            color: Colors.grey.shade200,
-                            child: Image.network(
-                              _productData['images'][index],
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => Center(child: Icon(Icons.broken_image, size: 80, color: Colors.grey.shade400)),
-                            ),
-                          );
-                        },
-                      ),
-                      // Page Indicator
-                      Positioned(
-                        bottom: 24, left: 0, right: 0,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(
-                            (_productData['images'] as List).length,
-                            (idx) => Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              height: 8,
-                              width: _currentImageIndex == idx ? 24 : 8,
-                              decoration: BoxDecoration(
-                                color: _currentImageIndex == idx ? colorScheme.primary : Colors.grey.shade400,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // --- B. MAIN INFO ---
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(_formatRupiah(_productData['price']), style: AppText.heading1.copyWith(color: colorScheme.primary)),
-                          const SizedBox(width: 8),
-                          // Logika Harga Coret (Tampil jika original_price ada)
-                          if (_productData['original_price'] != null)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 4.0),
-                              child: Text(
-                                _formatRupiah(_productData['original_price']), 
-                                style: AppText.caption.copyWith(color: Colors.grey, decoration: TextDecoration.lineThrough),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(_productData['name'], style: AppText.heading2),
-                      const SizedBox(height: 12),
-                      
-                      Row(
-                        children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 18),
-                          const SizedBox(width: 4),
-                          Text("${_productData['rating']}", style: AppText.subtitle.copyWith(fontWeight: FontWeight.bold)),
-                          const SizedBox(width: 12),
-                          Container(width: 1, height: 14, color: Colors.grey.shade300),
-                          const SizedBox(width: 12),
-                          Text("${_productData['sold_count']} Terjual", style: AppText.body.copyWith(color: Colors.grey.shade600)),
-                        ],
-                      ),
-                      
-                      const SizedBox(height: 24),
-                      const Divider(),
-                      const SizedBox(height: 16),
-
-                      // --- C. VARIANT SELECTOR ---
-                      ...(_productData['variants'] as Map<String, dynamic>).entries.map(
-                        (entry) => _buildVariantSection(entry.key, List<String>.from(entry.value))
-                      ),
-
-                      const SizedBox(height: 16),
-                      const Divider(),
-                      const SizedBox(height: 16),
-
-                      // --- D. DESCRIPTION ---
-                      Text("Description", style: AppText.heading2),
-                      const SizedBox(height: 12),
-                      Text(_productData['description'], style: AppText.body.copyWith(color: Colors.grey.shade700, height: 1.5)),
-
-                      const SizedBox(height: 24),
-
-                      // --- E. DYNAMIC SPECS TABLE ---
-                      Text("Specifications", style: AppText.heading2),
-                      const SizedBox(height: 12),
-                      Container(
-                        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(8)),
-                        child: Column(
-                          children: (_productData['specifications'] as Map<String, dynamic>).entries.map((entry) {
-                            return Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(flex: 2, child: Text(entry.key, style: AppText.body.copyWith(color: Colors.grey.shade600))),
-                                  Expanded(flex: 3, child: Text(entry.value.toString(), style: AppText.body.copyWith(fontWeight: FontWeight.w600))),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-    );
-  }
-
-  Widget _buildVariantSection(String title, List<String> options) {
-    if (options.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return SizedBox(
+      height: screenHeight * 0.45,
+      child: Stack(
         children: [
-          Text(title, style: AppText.subtitle),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12, runSpacing: 12,
-            children: options.map((option) {
-              final isSelected = _selectedVariants[title] == option;
-              final colorScheme = Theme.of(context).colorScheme;
-
-              return GestureDetector(
-                onTap: () {
-                  setState(() => _selectedVariants[title] = option);
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isSelected ? colorScheme.primary.withOpacity(0.1) : Colors.transparent,
-                    border: Border.all(color: isSelected ? colorScheme.primary : Colors.grey.shade300, width: isSelected ? 1.5 : 1.0),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    option,
-                    style: AppText.body.copyWith(
-                      color: isSelected ? colorScheme.primary : Colors.grey.shade700,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          PageView.builder(
+            onPageChanged: (index) => setState(() => _currentImageIndex = index),
+            itemCount: widget.images.isNotEmpty ? widget.images.length : 1,
+            itemBuilder: (context, index) {
+              String imgUrl = widget.images.isNotEmpty ? widget.images[index] : widget.fallbackImageUrl;
+              return Container(
+                color: Colors.grey.shade200,
+                child: Image.network(
+                  imgUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Center(child: Icon(Icons.broken_image, size: 80, color: Colors.grey.shade400)),
+                ),
+              );
+            },
+          ),
+          if (widget.images.length > 1)
+            Positioned(
+              bottom: 24, left: 0, right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  widget.images.length,
+                  (idx) => Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    height: 8,
+                    width: _currentImageIndex == idx ? 24 : 8,
+                    decoration: BoxDecoration(
+                      color: _currentImageIndex == idx ? colorScheme.primary : Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class ProductMainInfo extends StatelessWidget {
+  final ProductModel product;
+
+  const ProductMainInfo({super.key, required this.product});
+
+  String _formatRupiah(num number) {
+    return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(number);
+  }
+
+  String _formatSold(int sold) {
+    return NumberFormat.compact().format(sold);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(_formatRupiah(product.price), style: AppText.heading1.copyWith(color: colorScheme.primary)),
+            const SizedBox(width: 8),
+            if (product.isPromo && product.originalPrice != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4.0),
+                child: Text(
+                  _formatRupiah(product.originalPrice!),
+                  style: AppText.caption.copyWith(color: Colors.grey, decoration: TextDecoration.lineThrough),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(product.title, style: AppText.heading2),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Icon(Icons.star, color: Colors.amber, size: 18),
+            const SizedBox(width: 4),
+            Text("${product.rating}", style: AppText.subtitle.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(width: 12),
+            Container(width: 1, height: 14, color: Colors.grey.shade300),
+            const SizedBox(width: 12),
+            Text("${_formatSold(product.soldCount)} sold", style: AppText.body.copyWith(color: Colors.grey.shade600)),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class ProductVariantSelector extends StatelessWidget {
+  final Map<String, dynamic> variants;
+  final Map<String, dynamic> selectedVariants;
+  final Function(String, String) onVariantSelected;
+
+  const ProductVariantSelector({super.key, required this.variants, required this.selectedVariants, required this.onVariantSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: variants.entries.map((entry) {
+        String title = entry.key;
+        List<String> options = List<String>.from(entry.value);
+        if (options.isEmpty) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: AppText.subtitle),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12, runSpacing: 12,
+                children: options.map((option) {
+                  final isSelected = selectedVariants[title] == option;
+                  final colorScheme = Theme.of(context).colorScheme;
+                  return GestureDetector(
+                    onTap: () => onVariantSelected(title, option),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSelected ? colorScheme.primary.withValues(alpha: 0.1) : Colors.transparent,
+                        border: Border.all(color: isSelected ? colorScheme.primary : Colors.grey.shade300, width: isSelected ? 1.5 : 1.0),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        option,
+                        style: AppText.body.copyWith(
+                          color: isSelected ? colorScheme.primary : Colors.grey.shade700,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class ProductDescription extends StatelessWidget {
+  final String description;
+  const ProductDescription({super.key, required this.description});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Description", style: AppText.heading2),
+        const SizedBox(height: 12),
+        Text(description, style: AppText.body.copyWith(color: Colors.grey.shade700, height: 1.5)),
+      ],
+    );
+  }
+}
+
+class ProductSpecifications extends StatelessWidget {
+  final Map<String, dynamic> specifications;
+  const ProductSpecifications({super.key, required this.specifications});
+
+  @override
+  Widget build(BuildContext context) {
+    if (specifications.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Specifications", style: AppText.heading2),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(8)),
+          child: Column(
+            children: specifications.entries.map((entry) {
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 2, child: Text(entry.key, style: AppText.body.copyWith(color: Colors.grey.shade600))),
+                    Expanded(flex: 3, child: Text(entry.value.toString(), style: AppText.body.copyWith(fontWeight: FontWeight.w600))),
+                  ],
                 ),
               );
             }).toList(),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
