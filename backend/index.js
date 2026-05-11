@@ -130,22 +130,27 @@ app.post('/xendit-webhook', async (req, res) => {
     }
 });
 
-// --- WEBHOOK BITESHIP ---
 app.post('/biteship-webhook', async (req, res) => {
     try {
-        console.log("🚚 [WEBHOOK] Menerima update resi dari Biteship!");
-        
+        console.log("🚚 [WEBHOOK] Ping dari Biteship masuk!");
+
+        if (!req.body || !req.body.order_id) {
+            console.log("Lolos verifikasi keamanan Biteship!");
+            return res.status(200).json({ message: 'ok' }); 
+        }
+
         const biteshipEvent = req.body;
         const orderId = biteshipEvent.order_id;
-        const status = biteshipEvent.status; 
+        const status = biteshipEvent.status;
 
         console.log(`📦 Status paket pesanan ${orderId} sekarang adalah: ${status}`);
-        res.status(200).json({ message: 'Biteship Webhook received successfully' });
+        
+        return res.status(200).json({ message: 'Biteship Webhook received successfully' });
 
     } catch (error) {
         console.error("❌ [WEBHOOK] Gagal memproses data Biteship:", error);
         if (!res.headersSent) {
-            res.status(500).json({ message: 'Internal Server Error' });
+            return res.status(500).json({ message: 'Internal Server Error' });
         }
     }
 });
