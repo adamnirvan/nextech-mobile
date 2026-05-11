@@ -65,7 +65,7 @@ class _CartScreenState extends State<CartScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Item dihapus dari keranjang")),
+          const SnackBar(content: Text("Item deleted from cart!")),
         );
       }
     } catch (e) {
@@ -91,7 +91,7 @@ class _CartScreenState extends State<CartScreen> {
           backgroundColor: Colors.transparent,
         ),
         body: const Center(
-          child: Text("Silakan login untuk melihat keranjang."),
+          child: Text("Login to see your cart"),
         ),
       );
     }
@@ -168,7 +168,7 @@ class _CartScreenState extends State<CartScreen> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                "Keranjangmu masih kosong",
+                                "Your cart is empty",
                                 style: AppText.subtitle.copyWith(
                                   color: Colors.grey,
                                 ),
@@ -285,56 +285,54 @@ class _CartScreenState extends State<CartScreen> {
                                           Container(
                                             decoration: BoxDecoration(
                                               border: Border.all(
-                                                color: Colors.grey.shade300,
+                                                // Border responsif
+                                                color: colorScheme.onSurface.withOpacity(0.2), 
                                               ),
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
+                                              borderRadius: BorderRadius.circular(6),
                                             ),
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
+                                                // TOMBOL MINUS
                                                 GestureDetector(
-                                                  onTap: () => _updateQty(
-                                                    docId,
-                                                    qty,
-                                                    -1,
-                                                  ), // Kurangi 1 ke Firestore
+                                                  onTap: () => _updateQty(docId, qty, -1), 
                                                   child: Container(
-                                                    width: 32,
-                                                    height: 32,
+                                                    width: 32, height: 32,
                                                     color: Colors.transparent,
                                                     child: Icon(
                                                       Icons.remove,
                                                       size: 16,
-                                                      color: qty <= 1
-                                                          ? Colors.grey
-                                                          : Colors.black,
+                                                      // Jika qty 1, warna pudar. Jika bisa dikurangi, warna tegas
+                                                      color: qty <= 1 
+                                                          ? colorScheme.onSurface.withOpacity(0.3) 
+                                                          : colorScheme.onSurface, 
                                                     ),
                                                   ),
                                                 ),
+                                                // KOTAK ANGKA
                                                 Container(
-                                                  width: 36,
-                                                  height: 32,
-                                                  color: Colors.grey.shade100,
+                                                  width: 36, height: 32,
+                                                  // Background responsif (menggantikan grey.shade100)
+                                                  color: colorScheme.surfaceContainerHighest, 
                                                   alignment: Alignment.center,
                                                   child: Text(
                                                     qty.toString(),
-                                                    style: AppText.body,
+                                                    style: AppText.body.copyWith(
+                                                      color: colorScheme.onSurface, // Teks responsif
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
                                                   ),
                                                 ),
+                                                // TOMBOL PLUS
                                                 GestureDetector(
-                                                  onTap: () => _updateQty(
-                                                    docId,
-                                                    qty,
-                                                    1,
-                                                  ), // Tambah 1 ke Firestore
+                                                  onTap: () => _updateQty(docId, qty, 1),
                                                   child: Container(
-                                                    width: 32,
-                                                    height: 32,
+                                                    width: 32, height: 32,
                                                     color: Colors.transparent,
-                                                    child: const Icon(
+                                                    child: Icon(
                                                       Icons.add,
                                                       size: 16,
+                                                      color: colorScheme.onSurface, // Ikon responsif
                                                     ),
                                                   ),
                                                 ),
@@ -352,9 +350,7 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                 ),
 
-                // ==========================================
                 // 2. AREA CHECKOUT BAR
-                // ==========================================
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(

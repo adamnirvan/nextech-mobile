@@ -22,11 +22,10 @@ class _SplashScreenState extends State<SplashScreen>
     _controller = AnimationController(vsync: this);
   }
 
-  // --- SEMUA LOGIKA PENGECEKAN KITA JADIKAN SATU DI DALAM FUNGSI INI ---
   Future<void> _checkLoginStatus() async {
     if (!mounted) return;
 
-    // 1. Cek Deep Link Xendit Dulu
+    // 1. Cek Deep Link Xendit
     try {
       final appLink = AppLinks();
       final Uri? initialUri = await appLink.getInitialLink();

@@ -4,7 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AddressFormScreen extends StatefulWidget {
-  const AddressFormScreen({super.key});
+  final Map<String, dynamic>? addressData;
+
+  const AddressFormScreen({super.key, this.addressData});
 
   @override
   State<AddressFormScreen> createState() => _AddressFormScreenState();
@@ -16,16 +18,57 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
 
   bool _isDefault = false;
   bool _isSaving = false;
+  bool _isDeleting = false;
+  bool _isEdit = false;
+  bool _isInitialized = false;
 
-  // Controller untuk teks manual
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _streetController = TextEditingController();
-  String _selectedLabel = 'Rumah';
+  String _selectedLabel = 'Home';
 
-  // --- VARIABEL BITESHIP ---
   String? _selectedAreaId;
   String? _selectedAreaName;
+
+  // Menyimpan addressData yang diterima 
+  Map<String, dynamic>? _addressData;
+
+  @override
+  void initState() {
+    super.initState();
+    // Jika data dikirim lewat constructor (MaterialPageRoute), pakai langsung
+    if (widget.addressData != null) {
+      _fillForm(widget.addressData!);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Jika data dikirim lewat pushNamed arguments, tangkap di sini
+    // Guard _isInitialized agar tidak re-fill form setiap rebuild
+    if (!_isInitialized) {
+      _isInitialized = true;
+      if (widget.addressData == null) {
+        final args = ModalRoute.of(context)?.settings.arguments;
+        if (args != null && args is Map<String, dynamic>) {
+          _fillForm(args);
+        }
+      }
+    }
+  }
+
+  void _fillForm(Map<String, dynamic> data) {
+    _addressData = data;
+    _isEdit = true;
+    _nameController.text = data['receiver'] ?? '';
+    _phoneController.text = data['phone'] ?? '';
+    _streetController.text = data['full_address'] ?? '';
+    _selectedAreaId = data['areaId'];
+    _selectedAreaName = data['areaName'];
+    _selectedLabel = data['label'] ?? 'Home';
+    _isDefault = data['is_default'] ?? false;
+  }
 
   @override
   void dispose() {
@@ -35,92 +78,206 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
     super.dispose();
   }
 
-  // --- FUNGSI FORMAT NAMA AREA BITESHIP ---
-  // Biteship mengembalikan data berjenjang yang detail.
-  // Kita format jadi: "Kecamatan, Kota, Provinsi, Kode Pos"
   String _formatAreaName(dynamic area) {
     final district = area['name'] ?? '';
     final city = area['administrative_division_level_2_name'] ?? '';
     final province = area['administrative_division_level_1_name'] ?? '';
     final postalCode = area['postal_code'] ?? '';
-    
     return "$district, $city, $province, $postalCode";
   }
 
-  // --- REAL SAVE KE FIRESTORE ---
+
   Future<void> _saveAddress() async {
-    if (_formKey.currentState!.validate()) {
-      if (_selectedAreaId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Silakan cari dan pilih area pengiriman dari daftar!")));
-        return;
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_selectedAreaId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Silakan cari dan pilih area pengiriman dari daftar!"),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final User? currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) throw Exception("User belum login!");
+
+      // Jika toggle Utama ON, nonaktifkan semua default lain
+      if (_isDefault) {
+        final query = FirebaseFirestore.instance
+            .collection('addresses')
+            .where('userId', isEqualTo: currentUser.uid)
+            .where('is_default', isEqualTo: true);
+
+        final oldDefaults = await query.get();
+        final WriteBatch batch = FirebaseFirestore.instance.batch();
+
+        for (var doc in oldDefaults.docs) {
+          // Skip dokumen yang sedang diedit 
+          if (_isEdit && doc.id == _addressData!['id']) continue;
+          batch.update(doc.reference, {'is_default': false});
+        }
+        await batch.commit();
       }
 
-      setState(() => _isSaving = true);
+      final Map<String, dynamic> dataToSave = {
+        'userId': currentUser.uid,
+        'receiver': _nameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'areaId': _selectedAreaId,
+        'areaName': _selectedAreaName,
+        'full_address': _streetController.text.trim(),
+        'label': _selectedLabel,
+        'is_default': _isDefault,
+      };
 
-      try {
-        final User? currentUser = FirebaseAuth.instance.currentUser;
-        if (currentUser == null) throw Exception("User belum login!");
+      if (_isEdit) {
+        dataToSave['updatedAt'] = FieldValue.serverTimestamp();
+        await FirebaseFirestore.instance
+            .collection('addresses')
+            .doc(_addressData!['id'])
+            .update(dataToSave);
+      } else {
+        dataToSave['createdAt'] = FieldValue.serverTimestamp();
+        await FirebaseFirestore.instance.collection('addresses').add(dataToSave);
+      }
 
-        // LOGIKA ALAMAT UTAMA (Mematikan yang lama jika ini di-set Utama)
-        if (_isDefault) {
-          final oldDefaults = await FirebaseFirestore.instance
-              .collection('addresses')
-              .where('userId', isEqualTo: currentUser.uid)
-              .where('is_default', isEqualTo: true)
-              .get();
+      if (mounted) {
+        setState(() => _isSaving = false);
+        Navigator.pop(context, true);
+        final colorScheme = Theme.of(context).colorScheme;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Address saved successfully!", style: TextStyle(color: colorScheme.primary)),
+            backgroundColor: Colors.green,
 
-          WriteBatch batch = FirebaseFirestore.instance.batch();
-          for (var doc in oldDefaults.docs) {
-            batch.update(doc.reference, {'is_default': false});
-          }
-          await batch.commit(); 
-        }
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.only(bottom: 90),
+            elevation: 4,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        final colorScheme = Theme.of(context).colorScheme;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Gagal menyimpan: $e", style: TextStyle(color: colorScheme.primary)),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.only(bottom: 90),
+            elevation: 4,
+          ),
+        );
+      }
+    }
+  }
 
-        // DATA ASLI UNTUK FIRESTORE
-        final Map<String, dynamic> addressData = {
-          'userId': currentUser.uid,
-          'receiver': _nameController.text,
-          'phone': _phoneController.text,
-          'areaId': _selectedAreaId,         // ID Unik Biteship (Sangat penting untuk hitung ongkir nanti)
-          'areaName': _selectedAreaName,     // Nama lengkap area
-          'full_address': _streetController.text,
-          'label': _selectedLabel,
-          'is_default': _isDefault,
-          'createdAt': FieldValue.serverTimestamp(),
-        };
+  Future<void> _deleteAddress() async {
+    final colorScheme = Theme.of(context).colorScheme;
 
-        // Simpan ke Firestore
-        await FirebaseFirestore.instance.collection('addresses').add(addressData);
+    final bool confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            title: Text(
+              "Delete Address?",
+              style: TextStyle(
+                color: colorScheme.onSurface,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            content: Text(
+              "This address will be permanently deleted and cannot be restored.",
+              style: TextStyle(color: colorScheme.onSurface.withOpacity(0.65)),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  "Cancel",
+                  style: TextStyle(color: colorScheme.onSurface.withOpacity(0.55)),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(
+                  "Delete",
+                  style: TextStyle(
+                    color: colorScheme.error,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
 
-        if (mounted) {
-          setState(() => _isSaving = false);
-          Navigator.pop(context, true); // Kembali & bawa sinyal sukses
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Alamat berhasil disimpan!")));
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() => _isSaving = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Gagal menyimpan: $e")));
-        }
+    if (!confirm || _addressData == null) return;
+
+    setState(() => _isDeleting = true);
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('addresses')
+          .doc(_addressData!['id'])
+          .delete();
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Alamat berhasil dihapus")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isDeleting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Gagal menghapus: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
+        backgroundColor: colorScheme.surface,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text("Alamat Baru", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(
+          _isEdit ? "Edit Address" : "New Address",
+          style: TextStyle(
+            color: colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(
+            height: 1,
+            thickness: 1,
+            color: colorScheme.onSurface.withOpacity(0.08),
+          ),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -129,163 +286,401 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionTitle("Kontak"),
-              _buildTextField(_nameController, "Nama Lengkap", "Masukkan nama penerima"),
-              _buildTextField(_phoneController, "Nomor Telepon", "Contoh: 08123456789", isPhone: true),
-              
+              _buildSectionTitle("Recipient Information", colorScheme),
+              _buildTextField(
+                _nameController,
+                "Full Name",
+                "Recipient's Name",
+                colorScheme: colorScheme,
+              ),
+              _buildTextField(
+                _phoneController,
+                "Phone Number",
+                "e.g., 08123456789",
+                isPhone: true,
+                colorScheme: colorScheme,
+              ),
               const SizedBox(height: 24),
-              _buildSectionTitle("Lokasi Pengiriman (Biteship)"),
-              
-              // WIDGET AUTOCOMPLETE BITESHIP
-              _buildAreaAutocomplete(),
-
+              _buildSectionTitle("Delivery Location", colorScheme),
+              _buildAreaAutocomplete(colorScheme),
               const SizedBox(height: 16),
-              _buildTextField(_streetController, "Detail Jalan / Patokan", "Contoh: Jl. Mawar No. 12, Pagar Hitam", maxLines: 3),
-              
+              _buildTextField(
+                _streetController,
+                "Address Detail",
+                "e.g., Jl. Mawar No. 12, Pagar Hitam",
+                maxLines: 3,
+                colorScheme: colorScheme,
+              ),
               const SizedBox(height: 24),
-              _buildSectionTitle("Pengaturan Alamat"),
-              _buildLabelPicker(),
+              _buildSectionTitle("Settings", colorScheme),
+              _buildLabelPicker(colorScheme),
               const SizedBox(height: 16),
-              _buildDefaultSwitch(),
+              _buildDefaultSwitch(colorScheme),
               const SizedBox(height: 40),
             ],
           ),
         ),
       ),
-      bottomNavigationBar: _buildSaveButton(),
+      bottomNavigationBar: _buildBottomActions(colorScheme),
     );
   }
 
-  // --- WIDGET AUTOCOMPLETE PENCARIAN AREA ---
-// --- WIDGET AUTOCOMPLETE PENCARIAN AREA ---
-  Widget _buildAreaAutocomplete() {
-    // 1. UBAH dynamic menjadi Map<String, dynamic>
+  Widget _buildAreaAutocomplete(ColorScheme colorScheme) {
     return Autocomplete<Map<String, dynamic>>(
-      
+      initialValue: TextEditingValue(text: _selectedAreaName ?? ''),
       optionsBuilder: (TextEditingValue textEditingValue) async {
         if (textEditingValue.text.length < 3) {
-          // UBAH JUGA DI SINI
           return const Iterable<Map<String, dynamic>>.empty();
         }
         try {
-          // Ambil data dari API
           final results = await _apiService.searchArea(textEditingValue.text);
-          
-          // Cast / Konversi dari list dynamic menjadi list Map<String, dynamic>
           return results.map((item) => item as Map<String, dynamic>).toList();
-          
         } catch (e) {
-          // UBAH JUGA DI SINI
           return const Iterable<Map<String, dynamic>>.empty();
         }
       },
-      
-      // 2. Sesuaikan tipe parameter menjadi Map<String, dynamic>
-      displayStringForOption: (Map<String, dynamic> option) => _formatAreaName(option),
-      
-      // 3. Sesuaikan tipe parameter selection
+      displayStringForOption: (Map<String, dynamic> option) =>
+          _formatAreaName(option),
       onSelected: (Map<String, dynamic> selection) {
         setState(() {
-          _selectedAreaId = selection['id']; 
-          _selectedAreaName = _formatAreaName(selection); 
+          _selectedAreaId = selection['id'];
+          _selectedAreaName = _formatAreaName(selection);
         });
         FocusScope.of(context).unfocus();
       },
-
       fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
         return TextFormField(
           controller: controller,
           focusNode: focusNode,
+          style: TextStyle(color: colorScheme.onSurface, fontSize: 14),
           decoration: InputDecoration(
-            labelText: "Ketik Kecamatan / Kode Pos",
-            hintText: "Contoh: Gubeng atau 60281",
+            labelText: "Sub-District / Postal Code",
+            hintText: "e.g., Gubeng atau 60281",
             floatingLabelBehavior: FloatingLabelBehavior.always,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            suffixIcon: const Icon(Icons.search, color: Colors.grey),
+            labelStyle: TextStyle(
+              color: colorScheme.onSurface.withOpacity(0.55),
+              fontSize: 13,
+            ),
+            hintStyle: TextStyle(
+              color: colorScheme.onSurface.withOpacity(0.35),
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: colorScheme.onSurface.withOpacity(0.2),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: colorScheme.onSurface.withOpacity(0.2),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: colorScheme.onSurface,
+                width: 1.5,
+              ),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            suffixIcon: Icon(
+              Icons.search,
+              color: colorScheme.onSurface.withOpacity(0.4),
+              size: 20,
+            ),
+            filled: true,
+            fillColor: colorScheme.surfaceContainerHighest.withOpacity(0.5),
           ),
           validator: (value) {
-            if (value == null || value.isEmpty) return "Area tidak boleh kosong";
-            if (_selectedAreaId == null) return "Silakan pilih area dari daftar pop-up";
+            if (value == null || value.isEmpty) return "Area cannot be empty";
+            if (_selectedAreaId == null) {
+              return "Silakan pilih area dari daftar pop-up";
+            }
             return null;
           },
         );
       },
     );
   }
-  
-  // --- WIDGET HELPERS (Sama seperti sebelumnya) ---
-  Widget _buildSectionTitle(String title) {
+
+  Widget _buildSectionTitle(String title, ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 13)),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: colorScheme.onSurface.withOpacity(0.4),
+          fontSize: 11,
+          letterSpacing: 1.2,
+        ),
+      ),
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String label, String hint, {bool isPhone = false, int maxLines = 1}) {
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label,
+    String hint, {
+    bool isPhone = false,
+    int maxLines = 1,
+    required ColorScheme colorScheme,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
         controller: controller,
         keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
         maxLines: maxLines,
+        style: TextStyle(color: colorScheme.onSurface, fontSize: 14),
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
           floatingLabelBehavior: FloatingLabelBehavior.always,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          labelStyle: TextStyle(
+            color: colorScheme.onSurface.withOpacity(0.55),
+            fontSize: 13,
+          ),
+          hintStyle: TextStyle(
+            color: colorScheme.onSurface.withOpacity(0.35),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(
+              color: colorScheme.onSurface.withOpacity(0.2),
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(
+              color: colorScheme.onSurface.withOpacity(0.2),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(
+              color: colorScheme.onSurface,
+              width: 1.5,
+            ),
+          ),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          filled: true,
+          fillColor: colorScheme.surfaceContainerHighest.withOpacity(0.5),
         ),
-        validator: (value) => value == null || value.isEmpty ? "$label tidak boleh kosong" : null,
+        validator: (value) =>
+            value == null || value.trim().isEmpty ? "$label cannot be empty" : null,
       ),
     );
   }
 
-  Widget _buildLabelPicker() {
+  Widget _buildLabelPicker(ColorScheme colorScheme) {
     return Row(
-      children: ['Rumah', 'Kantor'].map((label) {
-        bool isSelected = _selectedLabel == label;
+      children: ['Home', 'Office'].map((label) {
+        final bool isSelected = _selectedLabel == label;
         return Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: ChoiceChip(
-            label: Text(label),
-            selected: isSelected,
-            onSelected: (val) => setState(() => _selectedLabel = label),
-            selectedColor: Colors.red.shade50,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: isSelected ? Colors.red : Colors.grey.shade300)),
+          padding: const EdgeInsets.only(right: 10),
+          child: GestureDetector(
+            onTap: () => setState(() => _selectedLabel = label),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colorScheme.onSurface
+                    : colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected
+                      ? colorScheme.onSurface
+                      : colorScheme.onSurface.withOpacity(0.15),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    label == 'Office'
+                        ? Icons.business_outlined
+                        : Icons.home_outlined,
+                    size: 16,
+                    color: isSelected
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: isSelected
+                          ? colorScheme.onPrimary
+                          : colorScheme.onSurface.withOpacity(0.6),
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         );
       }).toList(),
     );
   }
 
-  Widget _buildDefaultSwitch() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        const Text("Atur sebagai Alamat Utama", style: TextStyle(fontSize: 14)),
-        Switch(
-          value: _isDefault,
-          activeColor: Colors.red,
-          onChanged: (val) => setState(() => _isDefault = val),
+  Widget _buildDefaultSwitch(ColorScheme colorScheme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: _isDefault
+            ? colorScheme.onSurface.withOpacity(0.04)
+            : colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: _isDefault
+              ? colorScheme.onSurface.withOpacity(0.2)
+              : colorScheme.onSurface.withOpacity(0.1),
         ),
-      ],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.star_rounded,
+            size: 18,
+            color: _isDefault
+                ? colorScheme.onSurface
+                : colorScheme.onSurface.withOpacity(0.35),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Main Address",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                Text(
+                  "Used automatically at checkout",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurface.withOpacity(0.45),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _isDefault,
+            onChanged: (val) => setState(() => _isDefault = val),
+            activeColor: colorScheme.onSurface,
+            activeTrackColor: colorScheme.onSurface.withOpacity(0.3),
+            inactiveThumbColor: colorScheme.onSurface.withOpacity(0.35),
+            inactiveTrackColor: colorScheme.onSurface.withOpacity(0.1),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildSaveButton() {
+  Widget _buildBottomActions(ColorScheme colorScheme) {
     return Container(
-      padding: const EdgeInsets.all(20),
-      child: ElevatedButton(
-        onPressed: _isSaving ? null : _saveAddress,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.black,
-          minimumSize: const Size(double.infinity, 50),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-        child: _isSaving 
-          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-          : const Text("Simpan Alamat", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.onSurface.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Tombol Hapus 
+          if (_isEdit) ...[
+            Expanded(
+              flex: 2,
+              child: SizedBox(
+                height: 50,
+                child: OutlinedButton(
+                  onPressed: (_isSaving || _isDeleting) ? null : _deleteAddress,
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(
+                      color: _isDeleting
+                          ? colorScheme.error.withOpacity(0.3)
+                          : colorScheme.error,
+                      width: 1.5,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: _isDeleting
+                      ? SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: colorScheme.error,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Icon(
+                          Icons.delete_outline_rounded,
+                          size: 20,
+                          color: colorScheme.error,
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+
+          // Tombol Simpan 
+          Expanded(
+            flex: 3,
+            child: SizedBox(
+              height: 50,
+              child: ElevatedButton(
+                onPressed: (_isSaving || _isDeleting) ? null : _saveAddress,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorScheme.onSurface,
+                  disabledBackgroundColor: colorScheme.onSurface.withOpacity(0.3),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: _isSaving
+                    ? SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: colorScheme.onPrimary,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        "Save Address",
+                        style: TextStyle(
+                          color: colorScheme.onPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

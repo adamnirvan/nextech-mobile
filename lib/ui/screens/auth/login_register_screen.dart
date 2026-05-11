@@ -3,6 +3,7 @@ import '../../../routes/app_routes.dart';
 import 'package:nextech_mobile/core/theme/app_text.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'reset_password_screen.dart';
 
 class LoginRegisterScreen extends StatefulWidget {
   const LoginRegisterScreen({super.key});
@@ -13,6 +14,7 @@ class LoginRegisterScreen extends StatefulWidget {
 
 class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
   bool isLoginMode = true;
+  bool _isLoading = false;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
@@ -23,6 +25,38 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
     _passwordController.dispose();
     _nameController.dispose();
     super.dispose();
+  }
+
+  Widget _buildCustomTextField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    bool isPassword = false,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return TextField(
+      controller: controller,
+      obscureText: isPassword,
+      textAlignVertical: TextAlignVertical.center,
+      style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 15),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+          fontFamily: 'PlusJakartaSans',
+          color: colorScheme.onSurface.withOpacity(0.5),
+          fontSize: 15,
+        ),
+        prefixIcon: Icon(icon, color: colorScheme.onSurface.withOpacity(0.7)),
+        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+        isDense: true, 
+        enabledBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: Colors.grey.shade400),
+        ),
+        focusedBorder: UnderlineInputBorder(
+          borderSide: BorderSide(color: colorScheme.onSurface, width: 2),
+        ),
+      ),
+    );
   }
 
   @override
@@ -57,7 +91,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(9),
                 ),
                 child: Row(
                   children: [
@@ -120,7 +154,6 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
               const SizedBox(height: 32),
 
               // --- LOGIKA PEMANGGILAN FORM (AKTOR) ---
-              // AnimatedSwitcher: Memberikan efek fade saat berganti form
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 child: isLoginMode ? _buildLoginForm() : _buildRegisterForm(),
@@ -137,29 +170,18 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
     return Column(
       key: const ValueKey('login'),
       children: [
-        TextField(
+        // Menggunakan helper custom text field
+        _buildCustomTextField(
           controller: _emailController,
-          decoration: InputDecoration(
-            hintText: "E-mail address",
-            hintStyle: AppText.body.copyWith(
-              color: colorScheme.onSurface,
-              fontSize: 15,
-            ),
-            prefixIcon: Icon(Icons.email_rounded),
-          ),
+          hint: "E-mail address",
+          icon: Icons.email_rounded,
         ),
         const SizedBox(height: 16),
-        TextField(
+        _buildCustomTextField(
           controller: _passwordController,
-          obscureText: true,
-          decoration: InputDecoration(
-            hintText: "Password",
-            hintStyle: AppText.body.copyWith(
-              color: colorScheme.onSurface,
-              fontSize: 15,
-            ),
-            prefixIcon: Icon(Icons.lock_rounded),
-          ),
+          hint: "Password",
+          icon: Icons.lock_rounded,
+          isPassword: true,
         ),
         const SizedBox(height: 8),
 
@@ -168,6 +190,12 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
           alignment: Alignment.centerRight,
           child: TextButton(
             onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ResetPasswordScreen(),
+                ),
+              );
             },
             child: Text(
               "Forgot password?",
@@ -182,39 +210,93 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
           width: double.infinity,
           height: 44,
           child: FilledButton(
-            // Menambahkan style untuk mengubah warna
             style: FilledButton.styleFrom(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadiusGeometry.circular(8),
               ),
               backgroundColor: colorScheme.onSurface,
             ),
-            onPressed: () async {
-              try {
-                await FirebaseAuth.instance.signInWithEmailAndPassword(
-                  email: _emailController.text.trim(),
-                  password: _passwordController.text.trim(),
-                );
-                if (!mounted) return;
-                Navigator.pushReplacementNamed(context, AppRoutes.main);
-              } on FirebaseAuthException catch (e) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(e.message ?? "Login gagal. Coba lagi!"),
-                  ),
-                );
-              }
-            },
 
-            child: Text(
-              "Login",
-              style: AppText.body.copyWith(
-                color: colorScheme.onPrimary,
-                fontSize: 14.5,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            // LOGIKA ROUTING BERDASARKAN ROLE
+            onPressed: _isLoading
+                ? null
+                : () async {
+                    setState(() {
+                      _isLoading = true; // Nyalakan loading
+                    });
+
+                    try {
+                      // 1. Auth ke Firebase Authentication
+                      UserCredential userCredential = await FirebaseAuth
+                          .instance
+                          .signInWithEmailAndPassword(
+                            email: _emailController.text.trim(),
+                            password: _passwordController.text.trim(),
+                          );
+
+                      // 2. Ambil data user dari Firestore berdasarkan UID
+                      DocumentSnapshot userDoc = await FirebaseFirestore
+                          .instance
+                          .collection('users')
+                          .doc(userCredential.user!.uid)
+                          .get();
+
+                      String role = 'customer'; // Default role
+
+                      // 3. Cek apakah dokumennya ada dan baca role-nya
+                      if (userDoc.exists) {
+                        final data = userDoc.data() as Map<String, dynamic>;
+                        role = data['role'] ?? 'customer';
+                      }
+
+                      if (!mounted) return;
+
+                      // 4. PENGKONDISIAN NAVIGASI (HIDDEN ADMIN MODE)
+                      if (role == 'admin') {
+                        // Jika Admin, lempar ke rute Admin Main
+                        Navigator.pushReplacementNamed(
+                          context,
+                          AppRoutes.adminMain,
+                        );
+                      } else {
+                        // Jika Customer biasa, lempar ke Main (Home) seperti biasa
+                        Navigator.pushReplacementNamed(context, AppRoutes.main);
+                      }
+                    } on FirebaseAuthException catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(e.message ?? "Login gagal. Coba lagi!"),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    } finally {
+                      if (mounted) {
+                        setState(() {
+                          _isLoading = false; // Matikan loading
+                        });
+                      }
+                    }
+                  },
+
+            // Ubah teks jadi spinner jika sedang loading
+            child: _isLoading
+                ? SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      color: colorScheme.onPrimary,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : Text(
+                    "Login",
+                    style: AppText.body.copyWith(
+                      color: colorScheme.onPrimary,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
           ),
         ),
       ],
@@ -226,41 +308,24 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
     return Column(
       key: const ValueKey('register'),
       children: [
-        TextField(
+        // Menggunakan helper custom text field
+        _buildCustomTextField(
           controller: _nameController,
-          decoration: InputDecoration(
-            hintText: "Full Name",
-            hintStyle: AppText.body.copyWith(
-              color: colorScheme.onSurface,
-              fontSize: 15,
-            ),
-            prefixIcon: Icon(Icons.person),
-          ),
+          hint: "Full Name",
+          icon: Icons.person_rounded,
         ),
         const SizedBox(height: 16),
-        TextField(
+        _buildCustomTextField(
           controller: _emailController,
-          decoration: InputDecoration(
-            hintText: "E-mail address",
-            hintStyle: AppText.body.copyWith(
-              color: colorScheme.onSurface,
-              fontSize: 15,
-            ),
-            prefixIcon: Icon(Icons.email),
-          ),
+          hint: "E-mail address",
+          icon: Icons.email_rounded,
         ),
         const SizedBox(height: 16),
-        TextField(
+        _buildCustomTextField(
           controller: _passwordController,
-          obscureText: true,
-          decoration: InputDecoration(
-            hintText: "Password",
-            hintStyle: AppText.body.copyWith(
-              color: colorScheme.onSurface,
-              fontSize: 15,
-            ),
-            prefixIcon: Icon(Icons.lock),
-          ),
+          hint: "Password",
+          icon: Icons.lock_rounded,
+          isPassword: true,
         ),
         const SizedBox(height: 32),
 
@@ -275,7 +340,7 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                   _passwordController.text.trim().isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text("All field must be fill!"),
+                    content: Text("All fields must be filled!"),
                     backgroundColor: Colors.red,
                   ),
                 );
@@ -313,14 +378,15 @@ class _LoginRegisterScreenState extends State<LoginRegisterScreen> {
                   const SnackBar(
                     content: Text("Registrasi berhasil! Silakan Login."),
                     backgroundColor: Colors.green,
-                    ),
-                    );
-                    
+                  ),
+                );
               } on FirebaseAuthException catch (e) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(e.message ?? "Gagal mendaftar!"),
-                  backgroundColor: Colors.red,),
+                  SnackBar(
+                    content: Text(e.message ?? "Gagal mendaftar!"),
+                    backgroundColor: Colors.red,
+                  ),
                 );
               }
             },

@@ -2,15 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nextech_mobile/core/theme/app_text.dart';
 import 'package:nextech_mobile/ui/components/product_model.dart';
-// Sesuaikan import ProductVariantSelector jika kamu memisahnya di file lain.
-// Jika ProductVariantSelector masih di product_detail_screen.dart, kamu harus memindahkannya juga ke file komponen terpisah agar bisa di-import ke sini.
 
 class ProductActionBottomSheet extends StatefulWidget {
   final ProductModel product;
   final Map<String, dynamic> initialVariants;
   final bool isBuyNow;
   
-  // Callback untuk mengirim data (jumlah & varian terbaru) kembali ke Detail Screen
   final Function(int quantity, Map<String, dynamic> finalVariants) onConfirm;
 
   const ProductActionBottomSheet({
@@ -32,7 +29,6 @@ class _ProductActionBottomSheetState extends State<ProductActionBottomSheet> {
   @override
   void initState() {
     super.initState();
-    // Kita buat "salinan" dari varian yang dipilih di layar utama
     _localVariants = Map.from(widget.initialVariants);
   }
 
@@ -82,19 +78,6 @@ class _ProductActionBottomSheetState extends State<ProductActionBottomSheet> {
           ),
           const Divider(height: 32),
 
-          // 2. Varian Selector
-          // (Pastikan widget ini sudah bisa diakses/di-import di file ini)
-          /* ProductVariantSelector(
-            variants: widget.product.variants,
-            selectedVariants: _localVariants,
-            onVariantSelected: (title, option) {
-              setState(() => _localVariants[title] = option);
-            },
-          ),
-          const Divider(height: 32),
-          */
-
-          // 3. Counter Jumlah
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -121,12 +104,10 @@ class _ProductActionBottomSheetState extends State<ProductActionBottomSheet> {
           ),
           const SizedBox(height: 24),
 
-          // 4. Tombol Aksi
           SizedBox(
             width: double.infinity,
             child: FilledButton(
               onPressed: () {
-                // Eksekusi Callback! Kirim data ke Detail Screen
                 widget.onConfirm(_quantity, _localVariants);
               },
               style: FilledButton.styleFrom(

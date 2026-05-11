@@ -23,6 +23,7 @@ class ProductModel {
   final double rating;
   final int soldCount;
   final int discountPercentage;
+  final int stock;
   final Map<String, dynamic> variants;
   final Map<String, dynamic> specifications;
 
@@ -39,6 +40,7 @@ class ProductModel {
     required this.rating,
     required this.soldCount,
     required this.discountPercentage,
+    required this.stock,
     required this.variants,
     required this.specifications,
   });
@@ -59,11 +61,12 @@ class ProductModel {
       images: List<String>.from(data['images'] ?? []),
       isPromo: data['is_promo'] ?? false,
       category:cat,
-      originalPrice: data['original_price'] ?? 0,
-      price: data['price'] ?? 0,
-      rating: (data['rating'] ?? 0.0).toDouble(),
-      soldCount: data['sold_count'] ?? 0,
-      discountPercentage: data['discount_percentage'] ?? 0,
+      originalPrice: (data['original_price'] as num?)?.toInt() ?? 0,
+      price: (data['price'] as num?)?.toInt() ?? 0,
+      rating: (data['rating'] as num?)?.toDouble() ?? 0.0,
+      soldCount: (data['sold_count'] as num?)?.toInt() ?? 0,
+      discountPercentage: (data['discount_percentage'] as num?)?.toInt() ?? 0,
+      stock: (data['stock'] as num?)?.toInt() ?? 0,
       variants: data['variants'] ?? {},
       specifications: data['Specifications'] ?? {},
     );

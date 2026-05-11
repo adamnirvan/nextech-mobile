@@ -8,7 +8,6 @@ class ProductCard extends StatelessWidget {
 
   const ProductCard({super.key, required this.product});
 
-  // Fungsi helper otomatis pindah ke sini
   String _formatPrice(int price) {
     final formatCurrency = NumberFormat.decimalPattern('id');
     return formatCurrency.format(price);
@@ -22,93 +21,207 @@ class ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     double screenWidth = MediaQuery.of(context).size.width;
     double cardWidth = (screenWidth / 2) - 20;
     if (cardWidth > 220) cardWidth = 220;
 
+    final bool isPromo = product.isPromo;
+    final bool hasDiscount = isPromo && product.discountPercentage > 0;
+
     String originalPrice = "Rp ${_formatPrice(product.originalPrice ?? 0)}";
-    String? promoPrice = product.isPromo ? "Rp ${_formatPrice(product.price)}" : null;
-    String? discountTag = (product.isPromo && product.discountPercentage > 0) 
-        ? "${product.discountPercentage}% OFF" 
-        : null;
+    String promoPrice = "Rp ${_formatPrice(product.price)}";
 
     return GestureDetector(
-      // MENGIRIMKAN ID PRODUK KE DETAIL SCREEN
-      onTap: () => Navigator.pushNamed(context, AppRoutes.productDetail, arguments: product.id),
+      onTap: () => Navigator.pushNamed(
+        context,
+        AppRoutes.productDetail,
+        arguments: product.id,
+      ),
       child: Container(
         width: cardWidth,
-        height: 300,
+        height: 210,
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              spreadRadius: 1, blurRadius: 5, offset: const Offset(0, 2),
-            ),
-          ],
+          color: colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── IMAGE SECTION ──
             Stack(
               children: [
-                Container(
-                  height: 130, width: double.infinity,
-                  decoration: BoxDecoration(color: Colors.grey.shade300),
-                  clipBehavior: Clip.hardEdge,
+                // Product image
+                SizedBox(
+                  height: 110,
+                  width: double.infinity,
                   child: Image.network(
                     product.imageUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                    errorBuilder: (_, __, ___) => Container(
+                      color: colorScheme.surfaceContainerHighest,
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        size: 36,
+                        color: colorScheme.onSurface.withValues(alpha: 0.3),
+                      ),
+                    ),
                   ),
                 ),
-                if (product.isPromo && discountTag != null)
+
+                // ── DISCOUNT BADGE ──
+                if (hasDiscount)
                   Positioned(
-                    top: 0, left: 0,
+                    top: 8,
+                    left: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: const BorderRadius.only(bottomRight: Radius.circular(8))),
-                      child: Text(discountTag, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        // Gradient merah → oranye supaya lebih pop
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFE53935), Color(0xFFFF6F00)],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFE53935).withValues(alpha: 0.4),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.local_offer_rounded,
+                            size: 9,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            "${product.discountPercentage}% OFF",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
               ],
             ),
+
+            // ── INFO SECTION ──
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(10.0),
+                padding: const EdgeInsets.fromLTRB(9, 8, 9, 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(
-                      height: 38,
-                      child: Text(product.title, style: theme.textTheme.bodyMedium?.copyWith(height: 1.2), maxLines: 2, overflow: TextOverflow.ellipsis),
-                    ),
-                    const SizedBox(height: 6),
-                    SizedBox(
-                      height: 46,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                          if (product.isPromo) ...[
-                            Text(promoPrice ?? "", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red.shade700)),
-                            Text(originalPrice, style: TextStyle(fontSize: 11, color: Colors.grey.shade500, decoration: TextDecoration.lineThrough)),
-                          ] else ...[
-                            Text(originalPrice, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, fontSize: 15)),
-                          ],
-                        ],
+                    // Product title — 2 baris max
+                    Text(
+                      product.title,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        height: 1.25,
+                        color: colorScheme.onSurface,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const Spacer(),
+
+                    const SizedBox(height: 5),
+
+                    // ── HARGA ──
+                    if (isPromo) ...[
+                      // Harga promo (merah, bold)
+                      Text(
+                        promoPrice,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: colorScheme.error,
+                          height: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      // Harga asli (coret, abu)
+                      Text(
+                        originalPrice,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: colorScheme.onSurface.withValues(alpha: 0.4),
+                          decoration: TextDecoration.lineThrough,
+                          decorationColor: colorScheme.onSurface.withValues(alpha: 0.4),
+                          height: 1.1,
+                        ),
+                      ),
+                    ] else ...[
+                      Text(
+                        originalPrice,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: colorScheme.onSurface,
+                          height: 1.1,
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 6),
+
+                    // ── RATING & SOLD ──
                     Row(
                       children: [
-                        const Icon(Icons.star, size: 12, color: Color(0xFFFFD500)),
-                        const SizedBox(width: 4),
-                        Text(product.rating.toString(), style: theme.textTheme.displayMedium?.copyWith(fontSize: 12)),
+                        // Bintang
+                        const Icon(
+                          Icons.star_rounded,
+                          size: 12,
+                          color: Color(0xFFFFD600),
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          product.rating.toStringAsFixed(1),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurface.withValues(alpha: 0.75),
+                          ),
+                        ),
+                        // Divider titik
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Text(
+                            "·",
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: colorScheme.onSurface.withValues(alpha: 0.3),
+                            ),
+                          ),
+                        ),
+                        // Sold count
                         Expanded(
-                          child: Text("${_formatSold(product.soldCount.toString())} Sold", style: TextStyle(fontSize: 11, color: Colors.grey.shade600), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right),
+                          child: Text(
+                            "${_formatSold(product.soldCount.toString())} sold",
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              fontSize: 10,
+                              color: colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),

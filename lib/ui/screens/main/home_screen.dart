@@ -8,10 +8,8 @@ import 'package:nextech_mobile/ui/components/product_model.dart';
 import 'package:nextech_mobile/ui/components/product_card.dart';
 
 class HomeScreen extends StatefulWidget {
-  
-  final Function(int categoryIndex)? onNavigateToDiscovery; 
-  const HomeScreen({super.key, this.onNavigateToDiscovery,});
-  
+  final Function(int categoryIndex)? onNavigateToDiscovery;
+  const HomeScreen({super.key, this.onNavigateToDiscovery});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -28,15 +26,14 @@ class _HomeScreenState extends State<HomeScreen> {
   late Stream<QuerySnapshot> _flashSaleStream;
   late Stream<QuerySnapshot> _forYouStream;
 
-  final List<String> promoImages = [
-    'https://images.unsplash.com/photo-1603302576837-37561b2e2302?q=80&w=1000',
-    'https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=1000',
-    'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1000',
-  ];
+  StreamSubscription<QuerySnapshot>? _bannerSubscription;
+
+  List<String> promoImages = [];
 
   @override
   void initState() {
     super.initState();
+    _initBannerStream();
     _initFlashSaleStream();
     _initForYouStream();
     _startBannerAutoScroll();
@@ -48,7 +45,29 @@ class _HomeScreenState extends State<HomeScreen> {
     _timer?.cancel();
     _pageController.dispose();
     _countdownTimer?.cancel();
+    _bannerSubscription?.cancel();
     super.dispose();
+  }
+
+  void _initBannerStream() {
+    _bannerSubscription = FirebaseFirestore.instance
+        .collection('banners')
+        .orderBy('created_at', descending: true)
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        setState(() {
+          if (snapshot.docs.isEmpty) {
+            promoImages = [];
+          } else {
+            promoImages = snapshot.docs.map((doc) => doc['image_url'] as String).toList();
+            if (promoImages.isNotEmpty) {
+              _currentBannerIndex = 999 % promoImages.length;
+            }
+          }
+        });
+      }
+    });
   }
 
   void _initFlashSaleStream() {
@@ -65,14 +84,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _startBannerAutoScroll() {
-    int startPage = promoImages.length * 333;
     _pageController = PageController(
-      viewportFraction: 0.9,
-      initialPage: startPage,
+      viewportFraction: 0.95,
+      initialPage: 999,
     );
 
-    _timer = Timer.periodic(const Duration(seconds: 3), (Timer timer) {
-      if (_pageController.hasClients) {
+    _timer = Timer.periodic(const Duration(seconds: 4), (Timer timer) {
+      if (_pageController.hasClients && promoImages.length > 1) {
         _pageController.nextPage(
           duration: const Duration(milliseconds: 350),
           curve: Curves.easeIn,
@@ -111,30 +129,44 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: const GlobalAppBar(showSearchBar: true),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          const SizedBox(height: 16),
-          _buildPromoBanner(colorScheme),
-          const SizedBox(height: 20),
-          _buildCategories(theme),
-          const SizedBox(height: 20),
-          _buildFlashSaleSection(theme, colorScheme, hours, minutes, seconds),
-          const SizedBox(height: 24),
-          _buildForYouSection(theme),
-          const SizedBox(height: 24),
-        ],
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 16),
+            _buildPromoBanner(colorScheme),
+            const SizedBox(height: 20),
+            _buildCategories(theme),
+            const SizedBox(height: 20),
+            _buildFlashSaleSection(theme, colorScheme, hours, minutes, seconds),
+            const SizedBox(height: 24),
+            _buildForYouSection(theme),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildPromoBanner(ColorScheme colorScheme) {
+    if (promoImages.isEmpty) {
+      return SizedBox(
+        height: 180,
+        child: Center(
+          child: CircularProgressIndicator(color: colorScheme.primary),
+        ),
+      );
+    }
+
     return Column(
       children: [
         SizedBox(
           height: 180,
           child: PageView.builder(
             controller: _pageController,
+            physics: promoImages.length == 1
+                ? const NeverScrollableScrollPhysics()
+                : const AlwaysScrollableScrollPhysics(),
             onPageChanged: (index) {
               setState(() {
                 _currentBannerIndex = index % promoImages.length;
@@ -143,9 +175,11 @@ class _HomeScreenState extends State<HomeScreen> {
             itemBuilder: (context, index) {
               int realIndex = index % promoImages.length;
               return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
+                margin: const EdgeInsets.symmetric(horizontal: 8),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
+                  // ── Shadow supaya banner terasa floating ──
+                  
                   image: DecorationImage(
                     image: NetworkImage(promoImages[realIndex]),
                     fit: BoxFit.cover,
@@ -155,23 +189,29 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
         ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(promoImages.length, (index) {
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              width: _currentBannerIndex == index ? 20 : 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: _currentBannerIndex == index
-                    ? colorScheme.primary
-                    : Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            );
-          }),
-        ),
+        if (promoImages.length > 1) ...[
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(promoImages.length, (index) {
+              final bool active = _currentBannerIndex == index;
+              // ── Dot: aktif → pill animasi, tidak aktif → lingkaran kecil ──
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOut,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: active ? 20 : 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: active
+                      ? colorScheme.primary
+                      : colorScheme.onSurface.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              );
+            }),
+          ),
+        ]
       ],
     );
   }
@@ -201,35 +241,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildCategoryIcon(
-                        theme,
-                        Icons.smartphone_sharp,
-                        "Smartphone",
-                        1,
-                      ),
+                      _buildCategoryIcon(theme, Icons.smartphone_sharp, "Smartphone", 1),
                       const SizedBox(width: 50),
-                      _buildCategoryIcon(
-                        theme,
-                        Icons.laptop_chromebook,
-                        "Laptop",
-                        2,
-                      ),
+                      _buildCategoryIcon(theme, Icons.laptop_chromebook, "Laptop", 2),
                       const SizedBox(width: 50),
                       _buildCategoryIcon(theme, Icons.earbuds, "Audio/TWS", 3),
                       const SizedBox(width: 50),
-                      _buildCategoryIcon(
-                        theme,
-                        Icons.sports_esports,
-                        "Gaming",
-                        4,
-                      ),
+                      _buildCategoryIcon(theme, Icons.sports_esports, "Gaming", 4),
                       const SizedBox(width: 50),
-                      _buildCategoryIcon(
-                        theme,
-                        Icons.watch_rounded,
-                        "Smartwatch",
-                        5,
-                      ),
+                      _buildCategoryIcon(theme, Icons.watch_rounded, "Smartwatch", 5),
                       const SizedBox(width: 50),
                       _buildCategoryIcon(theme, Icons.usb, "Accessories", 6),
                     ],
@@ -262,6 +282,16 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                // ── Vertical accent bar merah di kiri judul ──
+                Container(
+                  width: 4,
+                  height: 20,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade700,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
                 Text(
                   "FLASH SALE",
                   style: AppText.heading1.copyWith(
@@ -272,20 +302,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(width: 12),
                 Row(
                   children: [
-                    _buildTimeBox(hours),
-                    _buildColon(),
-                    _buildTimeBox(minutes),
-                    _buildColon(),
-                    _buildTimeBox(seconds),
+                    _buildTimeBox(hours, colorScheme),
+                    _buildColon(colorScheme),
+                    _buildTimeBox(minutes, colorScheme),
+                    _buildColon(colorScheme),
+                    _buildTimeBox(seconds, colorScheme),
                   ],
-                ),
-                const Spacer(),
-                Text(
-                  "SEE ALL",
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
                 ),
               ],
             ),
@@ -299,9 +321,9 @@ class _HomeScreenState extends State<HomeScreen> {
               }
 
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text("Belum ada promo hari ini."),
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text("Belum ada promo hari ini.", style: AppText.body.copyWith(color: Colors.grey)),
                 );
               }
 
@@ -324,7 +346,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: products.map((product) {
                             return Padding(
                               padding: const EdgeInsets.only(right: 18.0),
-                              // MEMANGGIL KOMPONEN PRODUCT CARD
                               child: ProductCard(product: product),
                             );
                           }).toList(),
@@ -347,12 +368,19 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0),
-          child: Text(
-            "FOR YOU",
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                "FOR YOU",
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              
+            ],
           ),
         ),
         StreamBuilder<QuerySnapshot>(
@@ -363,7 +391,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }
 
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const Center(child: Text("Belum ada produk"));
+              return Center(child: Text("Belum ada produk", style: AppText.body.copyWith(color: Colors.grey)));
             }
 
             final products = snapshot.data!.docs.map((doc) {
@@ -380,7 +408,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       alignment: WrapAlignment.spaceBetween,
                       runSpacing: 16,
                       children: products.map((product) {
-                        // MEMANGGIL KOMPONEN PRODUCT CARD
                         return ProductCard(product: product);
                       }).toList(),
                     ),
@@ -394,30 +421,40 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildTimeBox(String timeText) {
+  Widget _buildTimeBox(String timeText, ColorScheme colorScheme) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.black,
+        // ── Gradient merah konsisten dengan badge ProductCard ──
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE53935), Color(0xFFC62828)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         timeText,
-        style: const TextStyle(
+        style: AppText.body.copyWith(
           color: Colors.white,
           fontWeight: FontWeight.bold,
-          fontSize: 12,
+          fontSize: 13,
+          letterSpacing: 0.5,
         ),
       ),
     );
   }
 
-  Widget _buildColon() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 4),
+  Widget _buildColon(ColorScheme colorScheme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Text(
         ":",
-        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        style: AppText.heading2.copyWith(
+          color: colorScheme.primary,
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+        ),
       ),
     );
   }
@@ -431,9 +468,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return InkWell(
       onTap: () {
         Navigator.pushNamed(
-          context, 
-          AppRoutes.discovery, 
-          arguments: {'categoryIndex': index} // Bawa angka kategorinya
+          context,
+          AppRoutes.discovery,
+          arguments: {'categoryIndex': index},
         );
       },
       child: Column(
@@ -443,8 +480,14 @@ class _HomeScreenState extends State<HomeScreen> {
             decoration: BoxDecoration(
               color: theme.colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
+              // ── Border tipis supaya container lebih defined ──
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.15),
+                width: 1,
+              ),
             ),
-            child: Icon(icon, size: 25),
+            // ── Icon pakai warna primary ──
+            child: Icon(icon, size: 25, color: theme.colorScheme.primary),
           ),
           const SizedBox(height: 8),
           Text(label, style: theme.textTheme.bodySmall?.copyWith(fontSize: 13)),
