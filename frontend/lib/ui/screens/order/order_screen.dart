@@ -153,7 +153,7 @@ Future<void> _payNow(BuildContext context, String orderId, int amount, String na
       // ⚠️ GANTI URL INI!
       // Jika backend sudah di-deploy ke Render/Railway, masukkan URL-nya di sini.
       // Jika masih lokal, pastikan IP-nya (192.168.1.x) sesuai dengan IPv4 komputermu HARI INI.
-      final String backendUrl = 'http://192.168.1.7:3000/create-invoice';
+      final String backendUrl = 'https://nextech-mobile.vercel.app/create-invoice';
 
       final response = await http.post(
         Uri.parse(backendUrl),

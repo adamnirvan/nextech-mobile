@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 
 class ApiService {
-  static const String _baseUrl = 'http://192.168.1.7:3000/api/';
+  static const String _baseUrl = 'https://nextech-mobile.vercel.app';
 
   final Dio _dio = Dio(
     BaseOptions(

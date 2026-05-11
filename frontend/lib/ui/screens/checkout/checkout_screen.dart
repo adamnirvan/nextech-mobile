@@ -138,7 +138,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final int totalAmountInt = totalAmount.toInt();
     final String customerName = _selectedAddress['receiver'] ?? 'Pembeli Nextech';
     // INGAT: Pastikan IP di bawah ini sesuai dengan IP terbaru laptopmu!
-    final Uri url = Uri.parse('http://192.168.1.7:3000/create-invoice'); 
+    final Uri url = Uri.parse('https://nextech-mobile.vercel.app/create-invoice'); 
 
     final User? currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
