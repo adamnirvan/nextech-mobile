@@ -130,6 +130,25 @@ app.post('/xendit-webhook', async (req, res) => {
     }
 });
 
+// --- WEBHOOK BITESHIP ---
+app.post('/biteship-webhook', async (req, res) => {
+    try {
+        console.log("🚚 [WEBHOOK] Menerima update resi dari Biteship!");
+        
+        const biteshipEvent = req.body;
+        const orderId = biteshipEvent.order_id;
+        const status = biteshipEvent.status; 
+
+        console.log(`📦 Status paket pesanan ${orderId} sekarang adalah: ${status}`);
+        res.status(200).json({ message: 'Biteship Webhook received successfully' });
+
+    } catch (error) {
+        console.error("❌ [WEBHOOK] Gagal memproses data Biteship:", error);
+        if (!res.headersSent) {
+            res.status(500).json({ message: 'Internal Server Error' });
+        }
+    }
+});
 
 app.get('/api/search-area', async (req, res) => {
     try {
