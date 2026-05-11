@@ -9,7 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:app_links/app_links.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../services/api_service.dart'; // Pastikan path ini benar
+import '../../../services/api_service.dart'; 
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -20,11 +20,11 @@ class CheckoutScreen extends StatefulWidget {
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   bool _isLoading = true;
-  bool _isLoadingShipping = false; // Loading khusus untuk ongkir
+  bool _isLoadingShipping = false;
   Map<String, dynamic> _selectedAddress = {};
   
   List<Map<String, dynamic>> _checkoutItems = [];
-  double _shippingFee = 0; // Ongkir sekarang dinamis!
+  double _shippingFee = 0; 
 
   late AppLinks _appLinks;
 
@@ -37,19 +37,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Tarik data arguments hanya sekali saat layar dimuat
     if (_checkoutItems.isEmpty) {
       final args = ModalRoute.of(context)?.settings.arguments;
       
-      // LOGIKA BARU: Tanpa Dummy!
-      // Jika ada data dari keranjang, masukkan. Jika tidak ada, biarkan list kosong [].
       if (args != null && args is List<Map<String, dynamic>>) {
         _checkoutItems = args;
       } else {
         _checkoutItems = [];
       }
             
-      // Setelah item siap (meskipun kosong), baru kita cari alamat user
       _fetchDefaultAddress();
     }
   }
@@ -92,7 +88,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           _isLoading = false;
         });
         
-        // SETELAH ALAMAT KETEMU, LANGSUNG HITUNG ONGKIRNYA!
+        // Hitung ongkir
         _calculateShipping();
         
       } else {
@@ -107,7 +103,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  // FUNGSI AJAIB: MENGHITUNG ONGKIR KE NODE.JS
+  // MENGHITUNG ONGKIR KE NODE.JS
   Future<void> _calculateShipping() async {
     if (_selectedAddress.isEmpty || _selectedAddress['areaId'] == null) {
       setState(() => _shippingFee = 0);
@@ -117,7 +113,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() => _isLoadingShipping = true); // Nyalakan loading ongkir
 
     try {
-      // Tembak API Service kita
+      // Tembak API Service 
       final fee = await ApiService().checkRates(_selectedAddress['areaId'], _checkoutItems);
       
       if (mounted) {
@@ -207,10 +203,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       0, (sum, item) => sum + ((item['price'] as num).toDouble() * (item['qty'] as num).toInt()),
     );
     double totalPayment = subtotal + _shippingFee;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(title: Text("Checkout", style: AppText.heading1.copyWith(fontSize: 18)), centerTitle: true, backgroundColor: Colors.white, elevation: 0, foregroundColor: Colors.black),
+      backgroundColor: colorScheme.surfaceContainerHighest,
+      appBar: AppBar(title: Text("Checkout", style: AppText.heading1.copyWith(fontSize: 18)), centerTitle: true, backgroundColor: colorScheme.surface, elevation: 0, surfaceTintColor: Colors.transparent, foregroundColor: colorScheme.onSurface),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -232,7 +229,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.location_on, color: Colors.red, size: 20),
+                          Icon(Icons.location_on, color: const Color(0xFFE53935), size: 20),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -241,19 +238,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                 Text("Shipping Address", style: AppText.subtitle.copyWith(fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 8),
                                 _selectedAddress.isEmpty
-                                  ? Text("Pilih Alamat Pengiriman", style: AppText.body.copyWith(color: Colors.red, fontStyle: FontStyle.italic))
+                                  ? Text("Pilih Alamat Pengiriman", style: AppText.body.copyWith(color: const Color(0xFFE53935), fontStyle: FontStyle.italic))
                                   : Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text("${_selectedAddress['receiver']} | ${_selectedAddress['phone']}", style: AppText.body),
                                         const SizedBox(height: 4),
-                                        Text("${_selectedAddress['full_address']}, ${_selectedAddress['areaName'] ?? ''}", style: AppText.caption.copyWith(color: Colors.grey.shade600)),
+                                        Text("${_selectedAddress['full_address']}, ${_selectedAddress['areaName'] ?? ''}", style: AppText.caption.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.5))),
                                       ],
                                     ),
                               ],
                             ),
                           ),
-                          const Icon(Icons.chevron_right, color: Colors.grey),
+                          Icon(Icons.chevron_right, color: colorScheme.onSurface.withValues(alpha: 0.3)),
                         ],
                       ),
                     ),
@@ -293,16 +290,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildProductItem(Map<String, dynamic> item) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         children: [
           Container(
             width: 60, height: 60,
-            decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(8)),
             child: (item['image'] != null && item['image'] is String && item['image'].toString().isNotEmpty)
-                ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(item['image'], fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.broken_image, color: Colors.grey)))
-                : const Icon(Icons.image, color: Colors.grey),
+                ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(item['image'], fit: BoxFit.cover, errorBuilder: (c, e, s) => Icon(Icons.broken_image, color: colorScheme.onSurface.withValues(alpha: 0.3))))
+                : Icon(Icons.image, color: colorScheme.onSurface.withValues(alpha: 0.3)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -310,7 +308,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(item['name'], style: AppText.body, maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text("${item['qty']}x | ${item['variant']}", style: AppText.caption.copyWith(color: Colors.grey)),
+                Text("${item['qty']}x | ${item['variant']}", style: AppText.caption.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.5))),
                 Text(_formatRupiah((item['price'] as num).toDouble()), style: AppText.body.copyWith(fontWeight: FontWeight.bold)),
               ],
             ),
@@ -321,27 +319,30 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildSection({required Widget child}) {
-    return Container(width: double.infinity, padding: const EdgeInsets.all(16), margin: const EdgeInsets.only(bottom: 8), color: Colors.white, child: child);
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(width: double.infinity, padding: const EdgeInsets.all(16), margin: const EdgeInsets.only(bottom: 8), color: colorScheme.surface, child: child);
   }
 
   Widget _buildPaymentRow(String label, String value, {bool isTotal = false, bool isLoading = false}) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: isTotal ? AppText.subtitle.copyWith(fontWeight: FontWeight.bold) : AppText.body),
+        Text(label, style: isTotal ? AppText.subtitle.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface) : AppText.body.copyWith(color: colorScheme.onSurface)),
         
         // JIKA SEDANG LOADING, TAMPILKAN SPINNER. JIKA TIDAK, TAMPILKAN HARGA
         isLoading 
-          ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red))
-          : Text(value, style: isTotal ? AppText.heading2.copyWith(color: Colors.red.shade700) : AppText.body),
+          ? SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: const Color(0xFFE53935)))
+          : Text(value, style: isTotal ? AppText.heading2.copyWith(color: const Color(0xFFE53935)) : AppText.body.copyWith(color: colorScheme.onSurface)),
       ],
     );
   }
 
   Widget _buildBottomAction(BuildContext context, double total, double subtotal) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))]),
+      decoration: BoxDecoration(color: colorScheme.surface, boxShadow: [BoxShadow(color: colorScheme.onSurface.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, -4))]),
       child: Row(
         children: [
           Expanded(
@@ -349,20 +350,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Total Payment", style: AppText.caption),
+                Text("Total Payment", style: AppText.caption.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.55))),
                 
                 // JIKA LOADING, SPINNER JUGA MUNCUL DI TOTAL BAWAH
                 _isLoadingShipping 
-                 ? const Padding(padding: EdgeInsets.only(top: 4), child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red)))
-                 : Text(_formatRupiah(total), style: AppText.subtitle.copyWith(fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+                 ? Padding(padding: const EdgeInsets.only(top: 4), child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: const Color(0xFFE53935))))
+                 : Text(_formatRupiah(total), style: AppText.subtitle.copyWith(fontWeight: FontWeight.bold, color: const Color(0xFFE53935))),
               ],
             ),
           ),
           ElevatedButton(
             // Matikan tombol kalau ongkir lagi diproses (mencegah user bayar sebelum total harga fix)
             onPressed: _isLoadingShipping || _selectedAddress.isEmpty ? null : () => payWithXendit(total, subtotal),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.black, padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-            child: const Text("Place Order", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(backgroundColor: colorScheme.primary, foregroundColor: colorScheme.onPrimary, padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16), shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(9)))),
+            child: Text("Place Order", style: AppText.subtitle.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.w700)),
           ),
         ],
       ),

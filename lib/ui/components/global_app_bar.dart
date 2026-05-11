@@ -7,18 +7,18 @@ class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool showCart;
   final Color backgroundColor;
   final Color contentColor;
-  // TAMBAHAN BARU: Parameter untuk menampilkan tombol back
   final bool showBackButton; 
   
 
   const GlobalAppBar({
+    
     super.key,
     this.title,
     this.showSearchBar = false,
     this.showCart = true,
-    this.backgroundColor = const Color.fromARGB(218, 0, 0, 0),
+    this.backgroundColor = const Color(0xFF1D1D1D),
     this.contentColor = Colors.white,
-    this.showBackButton = false, // Default false agar layar lain tidak berubah
+    this.showBackButton = false, 
     
   });
 
@@ -31,8 +31,6 @@ class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       centerTitle: false,
 
-      // LOGIKA TOMBOL BACK:
-      // Jika showBackButton true, tampilkan ikon back manual di sebelah kiri.
       leading: showBackButton 
           ? IconButton(
               icon: Icon(Icons.arrow_back, color: contentColor),
@@ -56,7 +54,7 @@ class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
             onPressed: () {
               Navigator.pushNamed(context, AppRoutes.cart);
             },
-            icon: Icon(Icons.shopping_cart, color: contentColor),
+            icon: Icon(Icons.shopping_cart, color: Colors.white),
           ),
         const SizedBox(width: 8), 
       ],
@@ -66,16 +64,13 @@ class GlobalAppBar extends StatelessWidget implements PreferredSizeWidget {
 Widget _buildSearchBar(BuildContext context) {
     return GestureDetector(
       onTap: () async {
-        // 1. Tunggu user ngetik di Search Screen
         final result = await Navigator.pushNamed(context, AppRoutes.search);
         
-        // 2. Kalau user beneran ngetik
         if (result != null && result is String && result.isNotEmpty) {
-           // 3. LANGSUNG BUKA DISCOVERY SEBAGAI HALAMAN BARU! (Tanpa NavBar)
            Navigator.pushNamed(
              context, 
              AppRoutes.discovery, 
-             arguments: {'searchQuery': result} // Bawa teksnya
+             arguments: {'searchQuery': result} 
            );
         }
       },

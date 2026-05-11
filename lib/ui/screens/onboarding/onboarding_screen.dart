@@ -34,14 +34,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Ambil tinggi layar untuk proporsi gambar Lottie
     final screenHeight = MediaQuery.of(context).size.height;
     final colorScheme = Theme.of(context).colorScheme;
     
 
     return Scaffold(
       body: SafeArea(
-        // KUNCI PERBAIKAN: Gunakan Stack agar tombol menempel di bawah
         child: Stack(
           children: [
             // --- 1. KONTEN UTAMA (Lottie + Teks) ---
@@ -54,11 +52,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               itemBuilder: (context, index) {
                 final page = _pages[index];
                 return Padding(
-                  padding: const EdgeInsets.fromLTRB(32, 24, 32, 100), // Beri ruang kosong (100) di bawah agar tidak tertutup tombol
+                  padding: const EdgeInsets.fromLTRB(32, 24, 32, 100), 
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center, // Pusatkan konten
+                    mainAxisAlignment: MainAxisAlignment.center, 
                     children: [
-                      // Lottie dibungkus SizedBox agar tingginya terkontrol stabil
                       SizedBox(
                         height: screenHeight * 0.45, 
                         child: Lottie.asset(
@@ -86,13 +83,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               },
             ),
 
-            // --- 2. NAVIGASI BAWAH (Selalu menempel di dasar layar) ---
+            // --- 2. NAVIGASI BAWAH ---
             Positioned(
-              bottom: 24, // Jarak dari batas bawah layar
-              left: 24,   // Jarak dari kiri
-              right: 24,  // Jarak dari kanan
+              bottom: 24, 
+              left: 24,  
+              right: 24,  
               child: _currentPage == 2
-                  // KONDISI 1: Halaman Terakhir (Tombol Get Started)
+                  // Halaman Terakhir (Tombol Get Started)
                   ? FilledButton(
                       onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.auth),
                       
@@ -108,7 +105,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         
                       ),
                     )
-                  // KONDISI 2: Halaman 1 & 2 (Skip, Titik, Next)
+                  // Halaman 1 & 2 (Skip, Titik, Next)
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [

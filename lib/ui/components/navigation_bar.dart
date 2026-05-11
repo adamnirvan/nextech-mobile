@@ -22,31 +22,90 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // SANGAT BERSIH! Tidak ada lagi oper-operan fungsi.
+    final colorScheme = Theme.of(context).colorScheme;
+
     final List<Widget> screens = [
       const HomeScreen(),
-      const DiscoveryScreen(), // Ini Discovery versi Tab Bar
+      const DiscoveryScreen(), 
       const NotificationsScreen(),
       const ProfileScreen(),
     ];
 
     return Scaffold(
-      body: screens[_selectedIndex], // Tampilkan layar yang aktif
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: Colors.black,
-        unselectedItemColor: Colors.grey,
-        selectedFontSize: 10,
-        unselectedFontSize: 10,
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped, 
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'HOME'),
-          BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'DISCOVERY'),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'NOTIFICATION'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'PROFILE'),
-        ],
+      backgroundColor: colorScheme.surfaceContainerHighest,
+      body: screens[_selectedIndex], 
+      
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: colorScheme.onSurface.withOpacity(0.08), 
+              width: 1,
+            ),
+          ),
+        ),
+        child: NavigationBarTheme(
+          data: NavigationBarThemeData(
+            indicatorColor: colorScheme.primary.withOpacity(0.12),
+            
+            overlayColor: WidgetStateProperty.all(Colors.transparent),
+            
+            labelTextStyle: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return TextStyle(
+                  fontFamily: 'PlusJakartaSans', 
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 12, 
+                  color: colorScheme.primary,
+                );
+              }
+              return TextStyle(
+                fontFamily: 'PlusJakartaSans', 
+                fontWeight: FontWeight.w600, 
+                fontSize: 11, 
+                color: colorScheme.onSurface.withOpacity(0.5),
+              );
+            }),
+            iconTheme: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return IconThemeData(color: colorScheme.primary, size: 24);
+              }
+              return IconThemeData(color: colorScheme.onSurface.withOpacity(0.5), size: 24);
+            }),
+          ),
+          
+          child: NavigationBar(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: _onItemTapped,
+            backgroundColor: Colors.transparent, 
+            elevation: 0,
+            height: 65,
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_filled),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.explore_outlined),
+                selectedIcon: Icon(Icons.explore),
+                label: 'Discovery',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.notifications_outlined),
+                selectedIcon: Icon(Icons.notifications),
+                label: 'Notification',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: 'Profile',
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

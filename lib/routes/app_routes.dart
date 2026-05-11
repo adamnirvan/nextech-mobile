@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nextech_mobile/ui/screens/address/address_form_screen.dart';
 
-// Import semua layar yang kamu punya di sini
 import '../ui/screens/splash/splash_screen.dart';
 import '../ui/screens/onboarding/onboarding_screen.dart';
 import '../ui/screens/auth/login_register_screen.dart';
@@ -15,14 +14,14 @@ import '../ui/screens/checkout/checkout_screen.dart';
 import '../ui/screens/checkout/payment_success_screen.dart';
 import '../ui/screens/address/address_list_screen.dart';
 import '../ui/screens/discovery/discovery_screen.dart';
-// Pastikan ini di-import
+import '../ui/screens/admin/admin_main.dart';
 
 class AppRoutes {
   static const String splash = '/';
   static const String onboarding = '/onboarding';
   static const String auth = '/auth';
-  static const String main = '/main'; // Rute untuk Ruangan Induk (Navbar)
-  static const String home = '/home'; // Boleh dibiarkan ada
+  static const String main = '/main'; 
+  static const String home = '/home'; 
   static const String adminDashboard = '/admin';
   static const String search = '/search';
   static const String productDetail = '/product-detail';
@@ -33,8 +32,7 @@ class AppRoutes {
   static const String addressList = '/address-list';
   static const String addressForm = '/address-form';
   static const String discovery = '/discovery';
-
-  
+  static const String adminMain = '/admin-main';
 
   static Map<String, WidgetBuilder> getRoutes() {
     return {
@@ -53,7 +51,8 @@ class AppRoutes {
       paymentSuccess: (context) => const PaymentSuccessScreen(),
       addressList: (context) => const AddressListScreen(),
       addressForm: (context) => const AddressFormScreen(),
-      discovery: (context) => const DiscoveryScreen()
+      discovery: (context) => const DiscoveryScreen(),
+      adminMain: (context) => const AdminMainScreen(),
     };
   }
 }

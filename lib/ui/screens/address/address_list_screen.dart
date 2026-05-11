@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../routes/app_routes.dart'; 
+import '../../../routes/app_routes.dart';
 
 class AddressListScreen extends StatefulWidget {
   const AddressListScreen({super.key});
@@ -11,214 +11,397 @@ class AddressListScreen extends StatefulWidget {
 }
 
 class _AddressListScreenState extends State<AddressListScreen> {
-  // Variabel untuk menyimpan ID alamat yang dipilih sementara (visual radio button)
   String? _selectedAddressId;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
-    // =========================================================================
-    // LOGIKA 1: PENANGKAPAN MODE (SURAT TUGAS)
-    // =========================================================================
-    // Kita cek apakah ada 'pesan' yang dikirim saat Navigator memanggil layar ini.
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-
-    // Jika dipanggil dari Checkout, biasanya akan mengirim 'currentSelectedId'
-    if (args != null && args['currentSelectedId'] != null && _selectedAddressId == null) {
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null &&
+        args['currentSelectedId'] != null &&
+        _selectedAddressId == null) {
       _selectedAddressId = args['currentSelectedId'];
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Menentukan apakah saat ini sedang dalam mode 'Pilih Alamat' (dari Checkout)
-    // atau mode 'Manajemen Alamat' (dari Profil).
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final colorScheme = Theme.of(context).colorScheme;
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final bool isSelectionMode = args?['isSelectionMode'] ?? false;
-
-    // Identitas user yang sedang login untuk memfilter data di Firestore
     final User? currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F8),
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: colorScheme.surface,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
-        // =========================================================================
-        // LOGIKA 2: UI KONDISIONAL (JUDUL)
-        // =========================================================================
         title: Text(
-          isSelectionMode ? "Pilih Alamat Pengiriman" : "Alamat Saya",
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
+          isSelectionMode ? "Select Address" : "My Address",
+          style: TextStyle(
+            color: colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(
+            height: 1,
+            thickness: 1,
+            color: colorScheme.onSurface.withOpacity(0.08),
+          ),
         ),
       ),
-      
-      // =========================================================================
-      // LOGIKA 3: KONEKSI REAL-TIME (STREAMBUILDER)
-      // =========================================================================
       body: currentUser == null
-          ? const Center(child: Text("Silakan login terlebih dahulu."))
+          ? Center(
+              child: Text(
+                "Please login to your account",
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+            )
           : StreamBuilder<QuerySnapshot>(
-              // Kita 'mendengarkan' koleksi addresses milik user ini secara terus menerus
               stream: FirebaseFirestore.instance
                   .collection('addresses')
                   .where('userId', isEqualTo: currentUser.uid)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Colors.red));
+                  return Center(
+                    child: CircularProgressIndicator(
+                      color: colorScheme.onSurface,
+                    ),
+                  );
                 }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return _buildEmptyState(); // Tampilan jika belum ada alamat
+                  return _buildEmptyState(colorScheme);
                 }
 
-                final List<DocumentSnapshot> addressDocs = snapshot.data!.docs;
+                final List<DocumentSnapshot> addressDocs =
+                    snapshot.data!.docs;
 
-                // LOGIKA SORTIR: Alamat 'Utama' (is_default) selalu muncul paling atas
+                // Sort berdasarkan field 'is_default' dari Firestore (bukan state lokal)
                 addressDocs.sort((a, b) {
-                  bool isADefault = (a.data() as Map<String, dynamic>)['is_default'] ?? false;
-                  bool isBDefault = (b.data() as Map<String, dynamic>)['is_default'] ?? false;
+                  final aData = a.data() as Map<String, dynamic>;
+                  final bData = b.data() as Map<String, dynamic>;
+                  final bool isADefault = aData['is_default'] == true;
+                  final bool isBDefault = bData['is_default'] == true;
                   if (isADefault && !isBDefault) return -1;
                   if (!isADefault && isBDefault) return 1;
                   return 0;
                 });
 
                 return ListView.builder(
-                  padding: const EdgeInsets.only(top: 8, bottom: 100),
+                  padding:
+                      const EdgeInsets.only(top: 12, bottom: 110, left: 12, right: 12),
                   itemCount: addressDocs.length,
                   itemBuilder: (context, index) {
                     final doc = addressDocs[index];
                     final data = doc.data() as Map<String, dynamic>;
-                    
-                    // Masukkan ID dokumen Firestore agar bisa dipakai saat klik
-                    data['id'] = doc.id; 
-
-                    return _buildAddressCard(data, isSelectionMode);
+                    data['id'] = doc.id;
+                    return _buildAddressCard(data, isSelectionMode, colorScheme);
                   },
                 );
               },
             ),
-
-      // TOMBOL TAMBAH ALAMAT (Sama untuk kedua mode)
-      bottomSheet: _buildBottomButton(),
+      bottomSheet: _buildBottomButton(colorScheme),
     );
   }
 
-  // =========================================================================
-  // LOGIKA 4: UI & PERILAKU KARTU (CARD LOGIC)
-  // =========================================================================
-  Widget _buildAddressCard(Map<String, dynamic> address, bool isSelectionMode) {
+  Widget _buildAddressCard(
+    Map<String, dynamic> address,
+    bool isSelectionMode,
+    ColorScheme colorScheme,
+  ) {
     final bool isSelected = _selectedAddressId == address['id'];
-    final bool isDefault = address['is_default'] == true;
 
-    return InkWell(
+    final bool isDefault = address['is_default'] == true;
+    final String label = address['label'] ?? 'Home';
+
+    return GestureDetector(
       onTap: () {
-        // PERILAKU BERCABANG BERDASARKAN MODE:
         if (isSelectionMode) {
-          // MODE CHECKOUT: Update centang, lalu LANGSUNG BALIK ke Checkout bawa data alamat
           setState(() => _selectedAddressId = address['id']);
           Future.delayed(const Duration(milliseconds: 200), () {
-            if (mounted) Navigator.pop(context, address); 
+            if (mounted) Navigator.pop(context, address);
           });
         } else {
-          // MODE PROFIL: Klik mungkin membuka detail atau form edit
-          print("Aksi: Lihat/Edit Alamat ${address['id']}");
+          Navigator.pushNamed(
+            context,
+            AppRoutes.addressForm,
+            arguments: address,
+          );
         }
       },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(16),
-        color: Colors.white,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // LOGIKA UI: Radio button hanya muncul jika user sedang 'memilih' (Checkout)
-            if (isSelectionMode) ...[
-              Icon(
-                isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                color: isSelected ? Colors.red : Colors.grey,
-                size: 22,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? colorScheme.onSurface
+                : colorScheme.onSurface.withOpacity(0.08),
+            width: isSelected ? 1.5 : 1,
+          ),
+          
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Radio button hanya muncul di selection mode
+              if (isSelectionMode) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(
+                    isSelected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_off,
+                    color: isSelected
+                        ? colorScheme.onSurface
+                        : colorScheme.onSurface.withOpacity(0.35),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+
+              // Ikon label (Rumah / Kantor)
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  label == 'Office' ? Icons.business_outlined : Icons.home_outlined,
+                  size: 18,
+                  color: colorScheme.onSurface.withOpacity(0.6),
+                ),
               ),
               const SizedBox(width: 12),
-            ],
 
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "${address['receiver']} | ${address['phone']}",
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "${address['full_address']}, ${address['areaName']}",
-                    style: TextStyle(color: Colors.grey.shade700, fontSize: 13, height: 1.4),
-                  ),
-                  const SizedBox(height: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Baris nama + badge label
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            "${address['receiver']}",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                        // Badge label (Rumah/Kantor)
+                        _buildLabelBadge(label, colorScheme),
+                      ],
+                    ),
 
-                  // Badge 'Utama' muncul jika field is_default di Firestore bernilai true
-                  if (isDefault) _buildDefaultBadge(),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      address['phone'] ?? '',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurface.withOpacity(0.55),
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+                    Text(
+                      "${address['full_address']}, ${address['areaName']}",
+                      style: TextStyle(
+                        color: colorScheme.onSurface.withOpacity(0.7),
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
+                    ),
+
+                    // ============================================================
+                    // Badge "Utama" berdasarkan is_default dari Firestore
+                    // ============================================================
+                    if (isDefault) ...[
+                      const SizedBox(height: 10),
+                      _buildDefaultBadge(colorScheme),
+                    ],
+                  ],
+                ),
               ),
-            ),
 
-            // Tombol Ubah (Tersedia di kedua mode)
-            TextButton(
-              onPressed: () {
-                Navigator.pushNamed(context, AppRoutes.addressForm, arguments: address);
-              },
-              child: const Text("Ubah", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-            ),
-          ],
+              // Tombol "Ubah" hanya di selection mode
+              if (isSelectionMode)
+                GestureDetector(
+                  onTap: () {
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.addressForm,
+                      arguments: address,
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Text(
+                      "Edit",
+                      style: TextStyle(
+                        color: colorScheme.onSurface.withOpacity(0.55),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        //decoration: TextDecoration.underline,
+                        //decorationColor: colorScheme.onSurface.withOpacity(0.55),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Panah ">" hanya di mode manajemen (bukan selection)
+              if (!isSelectionMode)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, top: 2),
+                  child: Icon(
+                    Icons.chevron_right,
+                    color: colorScheme.onSurface.withOpacity(0.3),
+                    size: 20,
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // --- SUB WIDGETS (UNTUK KERAPIAN KODE) ---
-
-  Widget _buildDefaultBadge() {
+  Widget _buildLabelBadge(String label, ColorScheme colorScheme) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(border: Border.all(color: Colors.red), borderRadius: BorderRadius.circular(4)),
-      child: const Text("Utama", style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: colorScheme.onSurface.withOpacity(0.6),
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildDefaultBadge(ColorScheme colorScheme) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.star_rounded,
+          size: 12,
+          color: colorScheme.onSurface,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          "Main",
+          style: TextStyle(
+            color: colorScheme.onSurface,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState(ColorScheme colorScheme) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.location_off_outlined, size: 80, color: Colors.grey.shade300),
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.location_off_outlined,
+              size: 36,
+              color: colorScheme.onSurface.withOpacity(0.3),
+            ),
+          ),
           const SizedBox(height: 16),
-          const Text("Belum ada alamat tersimpan", style: TextStyle(color: Colors.grey, fontSize: 16)),
+          Text(
+            "No address saved yet",
+            style: TextStyle(
+              color: colorScheme.onSurface.withOpacity(0.45),
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "Add your shipping address now",
+            style: TextStyle(
+              color: colorScheme.onSurface.withOpacity(0.3),
+              fontSize: 13,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildBottomButton() {
+  Widget _buildBottomButton(ColorScheme colorScheme) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))]),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.onSurface.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
       child: SizedBox(
         width: double.infinity,
         height: 50,
         child: OutlinedButton.icon(
           onPressed: () => Navigator.pushNamed(context, AppRoutes.addressForm),
-          icon: const Icon(Icons.add, color: Colors.red),
-          label: const Text("Tambah Alamat Baru", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          icon: Icon(Icons.add, color: colorScheme.onSurface, size: 20),
+          label: Text(
+            "Add New Address",
+            style: TextStyle(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
           style: OutlinedButton.styleFrom(
-            side: BorderSide(color: Colors.red.shade400, width: 1.5),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            side: BorderSide(
+              color: colorScheme.onSurface.withOpacity(0.3),
+              width: 1.5,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         ),
       ),

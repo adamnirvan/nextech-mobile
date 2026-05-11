@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 
 class ApiService {
-  // Pastikan IP ini sesuai dengan IP laptopmu ya!
   static const String _baseUrl = 'http://192.168.1.7:3000/api/';
 
   final Dio _dio = Dio(
@@ -12,12 +11,8 @@ class ApiService {
     ),
   );
 
-  // ==========================================
-  // PENCARIAN AREA BITESHP (CUKUP 1 FUNGSI)
-  // ==========================================
   Future<List<dynamic>> searchArea(String keyword) async {
     try {
-      // Kita kirim keyword ketikan user ke Node.js
       final response = await _dio.get('search-area', queryParameters: {'keyword': keyword});
       
       if (response.data['success'] == true) {
@@ -39,11 +34,8 @@ class ApiService {
 
       if (response.data['success'] == true) {
         List pricings = response.data['data'];
-        
-        // Pastikan Biteship mengembalikan daftar harga
+       
         if (pricings.isNotEmpty) {
-          // Untuk saat ini, kita ambil harga dari kurir pertama yang dikembalikan Biteship
-          // (Nanti bisa kita kembangkan jadi menu dropdown pilihan kurir)
           return (pricings[0]['price'] as num).toDouble();
         }
       }

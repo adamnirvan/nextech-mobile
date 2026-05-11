@@ -89,17 +89,33 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         });
       }
 
-      if (mounted) {
+     if (mounted) {
         Navigator.pop(context); // Tutup bottom sheet
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Berhasil ditambahkan ke keranjang!"), backgroundColor: Colors.green, duration: Duration(seconds: 2)),
+          const SnackBar(
+            content: Text(
+              "Item added to cart!",
+              style: TextStyle(fontFamily: 'PlusJakartaSans', color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
         );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal menambahkan: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Gagal menambahkan: $e",
+              style: const TextStyle(fontFamily: 'PlusJakartaSans', color: Colors.white),
+            ),
+            backgroundColor: Colors.red, // Tambahan opsional biar errornya jelas
+          ),
+        );
+      }
     }
   }
-
   // --- 2. FUNGSI BUY NOW ---
   void _buyNow(int quantity) {
     if (_product == null) return;
@@ -122,10 +138,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   // --- 3. FUNGSI MEMUNCULKAN BOTTOM SHEET ---
   void _showActionBottomSheet(bool isBuyNow) {
+    final colorScheme = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true, // Agar sheet bisa menyesuaikan ukuran saat keyboard muncul/konten panjang
-      backgroundColor: Colors.white,
+      backgroundColor: colorScheme.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (BuildContext context) {
         return ProductActionBottomSheet(
@@ -242,11 +259,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 }
 
-// ============================================================================
-// WIDGET-WIDGET PECAHAN
-// ============================================================================
 
-// WIDGET BARU: Bottom Sheet Pop-Up untuk Konfirmasi Beli/Cart
 class ProductActionBottomSheet extends StatefulWidget {
   final ProductModel product;
   final Map<String, dynamic> initialVariants;
@@ -282,43 +295,60 @@ class _ProductActionBottomSheetState extends State<ProductActionBottomSheet> {
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 20, right: 20, top: 20,
+        left: 20, right: 20, top: 16,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Handle bar ──
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: colorScheme.onSurface.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 80, height: 80,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(9),
+                  color: colorScheme.surfaceContainerHighest,
                   image: DecorationImage(
                     image: NetworkImage(widget.product.images.isNotEmpty ? widget.product.images.first : widget.product.imageUrl),
                     fit: BoxFit.cover,
                   )
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(widget.product.title, style: AppText.subtitle, maxLines: 2),
-                    const SizedBox(height: 8),
+                    Text(widget.product.title, style: AppText.subtitle.copyWith(color: colorScheme.onSurface), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 6),
                     Text(
                       NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(widget.product.price),
-                      style: AppText.heading2.copyWith(color: colorScheme.primary),
+                      style: AppText.heading2.copyWith(
+                        color: widget.product.isPromo ? const Color(0xFFE53935) : colorScheme.primary,
+                      ),
                     ),
+                    const SizedBox(height: 4),
+                    // TEKS STOK — ikut colorScheme, bukan hardcode biru
+                    Text("Stock: ${widget.product.stock}", style: AppText.caption.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.45), fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
-              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))
+              IconButton(icon: Icon(Icons.close, color: colorScheme.onSurface.withValues(alpha: 0.6)), onPressed: () => Navigator.pop(context))
             ],
           ),
-          const Divider(height: 32),
+          Divider(height: 32, color: colorScheme.onSurface.withValues(alpha: 0.1)),
 
           // Panggil Variant Selector yang ada di file ini
           ProductVariantSelector(
@@ -334,20 +364,23 @@ class _ProductActionBottomSheetState extends State<ProductActionBottomSheet> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Jumlah", style: AppText.subtitle),
+              Text("Quantity", style: AppText.subtitle.copyWith(color: colorScheme.onSurface)),
               Container(
-                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(border: Border.all(color: colorScheme.onSurface.withValues(alpha: 0.15)), borderRadius: BorderRadius.circular(9)),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.remove, size: 20),
+                      icon: Icon(Icons.remove, size: 18, color: colorScheme.onSurface),
                       onPressed: () {
                         if (_quantity > 1) setState(() => _quantity--);
                       },
                     ),
-                    Text(_quantity.toString(), style: AppText.body.copyWith(fontWeight: FontWeight.bold)),
+                    SizedBox(
+                      width: 32,
+                      child: Text(_quantity.toString(), style: AppText.body.copyWith(fontWeight: FontWeight.w700, color: colorScheme.onSurface), textAlign: TextAlign.center),
+                    ),
                     IconButton(
-                      icon: const Icon(Icons.add, size: 20),
+                      icon: Icon(Icons.add, size: 18, color: colorScheme.onSurface),
                       onPressed: () => setState(() => _quantity++),
                     ),
                   ],
@@ -366,8 +399,10 @@ class _ProductActionBottomSheetState extends State<ProductActionBottomSheet> {
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(9))),
               ),
-              child: Text(widget.isBuyNow ? "Beli Sekarang" : "Masukkan Keranjang", style: const TextStyle(fontWeight: FontWeight.bold)),
+              child: Text(widget.isBuyNow ? "Buy Now" : "Add to Cart", style: AppText.subtitle.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.w700)),
             ),
           ),
           const SizedBox(height: 20),
@@ -387,10 +422,16 @@ class ProductBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      padding: const EdgeInsets.fromLTRB(20, 15, 20, 20),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -400,8 +441,8 @@ class ProductBottomBar extends StatelessWidget {
               onPressed: onAddToCart,
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                side: BorderSide(color: colorScheme.primary),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                side: BorderSide(color: colorScheme.primary, width: 1.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: Icon(Icons.add_shopping_cart, color: colorScheme.primary),
             ),
@@ -414,9 +455,12 @@ class ProductBottomBar extends StatelessWidget {
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: colorScheme.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: Text("Buy Now", style: AppText.subtitle.copyWith(color: colorScheme.onPrimary)),
+              child: Text(
+                "Buy Now",
+                style: AppText.subtitle.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.w700),
+              ),
             ),
           ),
         ],
@@ -453,11 +497,13 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
             itemBuilder: (context, index) {
               String imgUrl = widget.images.isNotEmpty ? widget.images[index] : widget.fallbackImageUrl;
               return Container(
-                color: Colors.grey.shade200,
+                color: colorScheme.surfaceContainerHighest,
                 child: Image.network(
                   imgUrl,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Center(child: Icon(Icons.broken_image, size: 80, color: Colors.grey.shade400)),
+                  errorBuilder: (context, error, stackTrace) => Center(
+                    child: Icon(Icons.broken_image_outlined, size: 80, color: colorScheme.onSurface.withValues(alpha: 0.3)),
+                  ),
                 ),
               );
             },
@@ -469,15 +515,20 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
                   widget.images.length,
-                  (idx) => Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    height: 8,
-                    width: _currentImageIndex == idx ? 24 : 8,
-                    decoration: BoxDecoration(
-                      color: _currentImageIndex == idx ? colorScheme.primary : Colors.grey.shade400,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
+                  (idx) {
+                    final bool active = _currentImageIndex == idx;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOut,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      height: 8,
+                      width: active ? 24 : 8,
+                      decoration: BoxDecoration(
+                        color: active ? colorScheme.primary : Colors.white.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -503,36 +554,95 @@ class ProductMainInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final bool isPromo = product.isPromo && product.originalPrice != null;
+    final bool hasDiscount = isPromo && product.discountPercentage > 0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ── Discount badge pill (konsisten dengan ProductCard) ──
+        if (hasDiscount) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFE53935), Color(0xFFFF6F00)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFE53935).withValues(alpha: 0.35),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.local_offer_rounded, size: 11, color: Colors.white),
+                const SizedBox(width: 4),
+                Text(
+                  "${product.discountPercentage}% OFF",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        // ── Harga (merah kalau promo) ──
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(_formatRupiah(product.price), style: AppText.heading1.copyWith(color: colorScheme.primary)),
-            const SizedBox(width: 8),
-            if (product.isPromo && product.originalPrice != null)
+            Text(
+              _formatRupiah(product.price),
+              style: AppText.heading1.copyWith(
+                color: isPromo ? const Color(0xFFE53935) : colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            if (isPromo)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4.0),
                 child: Text(
                   _formatRupiah(product.originalPrice!),
-                  style: AppText.caption.copyWith(color: Colors.grey, decoration: TextDecoration.lineThrough),
+                  style: AppText.caption.copyWith(
+                    color: colorScheme.onSurface.withValues(alpha: 0.4),
+                    decoration: TextDecoration.lineThrough,
+                    decorationColor: colorScheme.onSurface.withValues(alpha: 0.4),
+                  ),
                 ),
               ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
+
+        // ── Judul produk ──
         Text(product.title, style: AppText.heading2),
         const SizedBox(height: 12),
+
+        // ── Rating & sold ──
         Row(
           children: [
-            const Icon(Icons.star, color: Colors.amber, size: 18),
+            const Icon(Icons.star_rounded, color: Color(0xFFFFD600), size: 18),
             const SizedBox(width: 4),
             Text("${product.rating}", style: AppText.subtitle.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(width: 12),
-            Container(width: 1, height: 14, color: Colors.grey.shade300),
-            const SizedBox(width: 12),
-            Text("${_formatSold(product.soldCount)} sold", style: AppText.body.copyWith(color: Colors.grey.shade600)),
+            const SizedBox(width: 10),
+            Container(width: 1, height: 14, color: colorScheme.onSurface.withValues(alpha: 0.2)),
+            const SizedBox(width: 10),
+            Text(
+              "${_formatSold(product.soldCount)} sold",
+              style: AppText.body.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.5)),
+            ),
           ],
         ),
       ],
@@ -626,17 +736,29 @@ class ProductSpecifications extends StatelessWidget {
         Text("Specifications", style: AppText.heading2),
         const SizedBox(height: 12),
         Container(
-          decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(
+            border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2)),
+            borderRadius: BorderRadius.circular(10),
+          ),
           child: Column(
             children: specifications.entries.map((entry) {
+              final colorScheme = Theme.of(context).colorScheme;
               return Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: colorScheme.outline.withValues(alpha: 0.15))),
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(flex: 2, child: Text(entry.key, style: AppText.body.copyWith(color: Colors.grey.shade600))),
-                    Expanded(flex: 3, child: Text(entry.value.toString(), style: AppText.body.copyWith(fontWeight: FontWeight.w600))),
+                    Expanded(
+                      flex: 2,
+                      child: Text(entry.key, style: AppText.body.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.5))),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(entry.value.toString(), style: AppText.body.copyWith(fontWeight: FontWeight.w600)),
+                    ),
                   ],
                 ),
               );

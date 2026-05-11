@@ -55,13 +55,14 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
     final String orderId = args?['orderId'] ?? '-';
     final String amount = args?['amount'] ?? '0';
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colorScheme.surface,
       body: PopScope(
         canPop: false,
         child: Container(
@@ -89,7 +90,7 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
               Text(
                 "Hooray! Your payment was successful.\nWe are now preparing your order.",
                 textAlign: TextAlign.center,
-                style: AppText.body.copyWith(color: Colors.grey),
+                style: AppText.body.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.5)),
               ),
               const SizedBox(height: 40),
 
@@ -97,7 +98,7 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8F9FA),
+                  color: colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -115,8 +116,8 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
                       "Total Amount", 
                       "Rp $amount",
                       valueStyle: AppText.subtitle.copyWith(
-                        color: Colors.green.shade700, 
-                        fontWeight: FontWeight.bold
+                        color: const Color(0xFFE53935),
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
@@ -138,17 +139,15 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(9)),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     "Track My Order",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: AppText.subtitle.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -163,8 +162,8 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
                 },
                 child: Text(
                   "Back to Homepage",
-                  style: TextStyle(
-                    color: Colors.grey.shade700,
+                  style: AppText.body.copyWith(
+                    color: colorScheme.onSurface.withValues(alpha: 0.5),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -177,6 +176,7 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
   }
 
   Widget _buildRowInfo(String label, String value, {TextStyle? valueStyle}) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -184,11 +184,11 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
         children: [
           Text(
             label,
-            style: AppText.body.copyWith(color: Colors.grey.shade600),
+            style: AppText.body.copyWith(color: colorScheme.onSurface.withValues(alpha: 0.5)),
           ),
           Text(
             value,
-            style: valueStyle ?? AppText.body.copyWith(fontWeight: FontWeight.w600),
+            style: valueStyle ?? AppText.body.copyWith(fontWeight: FontWeight.w600, color: colorScheme.onSurface),
           ),
         ],
       ),

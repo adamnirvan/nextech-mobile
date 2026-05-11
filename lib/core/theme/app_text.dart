@@ -2,18 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppText {
-  // =========================================
-  // 1. TEMA TEKS DASAR
-  // =========================================
   static TextTheme get textTheme {
     return GoogleFonts.plusJakartaSansTextTheme();
   }
 
-  // =========================================
-  // 2. KOLEKSI GAYA KHUSUS (Jalan pintas untuk dipakai di UI)
-  // =========================================
-
-  // H1: Untuk Judul Paling Besar (Misal: Teks "Nextech" di halaman Login jika tidak pakai gambar)
+  // H1: Untuk Judul Paling Besar 
   static TextStyle get heading1 =>
       GoogleFonts.plusJakartaSans(fontSize: 32, fontWeight: FontWeight.bold);
 
