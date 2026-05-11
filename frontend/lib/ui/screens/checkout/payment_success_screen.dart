@@ -36,7 +36,7 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen> {
 
   Future<void> _fetchPaymentStatus(String orderId) async {
     try {
-      final response = await http.get(Uri.parse('http://192.168.1.7:3000/get-payment-status/$orderId'));
+      final response = await http.get(Uri.parse('https://nextech-mobile.vercel.app/get-payment-status/$orderId'));
       final data = jsonDecode(response.body);
 
       if (data['success']) {
