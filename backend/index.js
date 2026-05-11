@@ -192,7 +192,10 @@ app.post('/api/check-rates', async (req, res) => {
 
 
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server Backend Nextech sudah menyala di port ${PORT}!`);
-    console.log(`Menunggu pesanan dari Flutter...\n`);
-});
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
+module.exports = app;
