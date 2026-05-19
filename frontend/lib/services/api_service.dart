@@ -13,7 +13,7 @@ class ApiService {
 
   Future<List<dynamic>> searchArea(String keyword) async {
     try {
-      final response = await _dio.get('search-area', queryParameters: {'keyword': keyword});
+      final response = await _dio.get('/api/search-area', queryParameters: {'keyword': keyword});
       
       if (response.data['success'] == true) {
         return response.data['data']; 
@@ -27,7 +27,7 @@ class ApiService {
 
   Future<double> checkRates(String destinationAreaId, List<dynamic> items) async {
     try {
-      final response = await _dio.post('check-rates', data: {
+      final response = await _dio.post('/api/check-rates', data: {
         'destinationAreaId': destinationAreaId,
         'items': items,
       });
