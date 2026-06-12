@@ -1,5 +1,5 @@
 # Nextech - Electronics E-Commerce Platform
-<img width="1080" height="1080" alt="nextech_logo" src="https://github.com/user-attachments/assets/7a512d6d-ea2d-43f8-a0ee-45f53bdf69ac" />
+<img width="1080" height="600" alt="nextech_logo" src="https://github.com/user-attachments/assets/7a512d6d-ea2d-43f8-a0ee-45f53bdf69ac" />
 
 ## 📖 About Nextech
 Nextech is a modern, full-stack mobile e-commerce application specifically designed for electronic products. Built to provide a seamless and premium shopping experience, it handles everything from browsing the latest gadgets to secure, automated checkout processes with real-time shipping calculations.
