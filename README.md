@@ -1,7 +1,7 @@
 # Nextech - Electronics E-Commerce Platform
-<img width="1080" height="600" alt="nextech_logo" src="https://github.com/user-attachments/assets/7a512d6d-ea2d-43f8-a0ee-45f53bdf69ac" />
+<img width="1080" height="282" alt="lugu_00000" src="https://github.com/user-attachments/assets/47e1ebb7-a8e5-4315-8e4d-596473177111" />
 
-## 📖 About Nextech
+## About
 Nextech is a modern, full-stack mobile e-commerce application specifically designed for electronic products. Built to provide a seamless and premium shopping experience, it handles everything from browsing the latest gadgets to secure, automated checkout processes with real-time shipping calculations.
 
 ---
@@ -30,7 +30,6 @@ Users can easily track their current active orders, view past transaction histor
 
 ## 🛠️ Tech Stack
 
-Here are the core technologies and third-party services utilized to build and deploy this application:
 
 ### Frontend
 *   ![Flutter](https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white) 
